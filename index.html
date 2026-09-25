@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Indústria Farmacêutica Brasileira — Intelligence & Analytics Platform</title>
+  
+  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Vis.js Network CDN (Interactive Relationship Graphs) -->
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <!-- Google Charts CDN (Interactive Sankey Diagrams) -->
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Lock Screen Overlay (Criptografia AES-256 de Ponta a Ponta) -->
+  <div id="crypto-lockscreen" class="crypto-lockscreen-overlay" style="display: none;">
+    <div class="crypto-lockscreen-card">
+      <div class="crypto-lockscreen-badge">ACESSO RESTRITO • CRIPTOGRAFIA AES-256</div>
+      <h1 class="crypto-lockscreen-title">Inteligência Farmacêutica</h1>
+      <p class="crypto-lockscreen-subtitle">
+        Esta base de dados contém informações estratégicas protegidas por criptografia militar de ponta a ponta. 
+        Insira a chave de segurança para descriptografar os dados em tempo real no seu navegador.
+      </p>
+      <form id="crypto-unlock-form" onsubmit="event.preventDefault(); window.unlockDashboardWithPassword();">
+        <div class="crypto-input-group">
+          <label for="crypto-password-input">Chave de Acesso / Senha</label>
+          <input type="password" id="crypto-password-input" class="crypto-password-input" placeholder="Digite a chave de segurança..." autocomplete="current-password" required>
+        </div>
+        <div class="crypto-remember-group">
+          <label>
+            <input type="checkbox" id="crypto-remember-check" checked> Lembrar acesso nesta sessão do navegador
+          </label>
+        </div>
+        <button type="submit" id="crypto-unlock-btn" class="crypto-submit-btn">
+          Descriptografar e Acessar
+        </button>
+        <div id="crypto-error-msg" class="crypto-error" style="display: none;"></div>
+      </form>
+      <div class="crypto-footer-note">
+        Os dados são processados e decifrados exclusivamente na memória RAM do seu computador. Nenhum registro descriptografado é armazenado em servidores externos.
+      </div>
+    </div>
+  </div>
+
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand-header">
+        <div class="brand-icon" style="font-weight: 800; font-size: 15px; color: #fff; background: var(--primary); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">PD</div>
+        <div class="brand-title">
+          <h1>PharmaData BR</h1>
+          <span>CMED • ANVISA • Receita</span>
+        </div>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item active">
+          <button data-tab="tab-overview">
+            <span class="nav-icon">[P]</span>
+            <span>Panorama Executivo</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button data-tab="tab-medicamentos">
+            <span class="nav-icon">[E]</span>
+            <span>Explorador de Remédios</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button data-tab="tab-empresas">
+            <span class="nav-icon">[L]</span>
+            <span>Laboratórios & Sócios</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button data-tab="tab-especiais">
+            <span class="nav-icon">[F]</span>
+            <span>Fitoterápicos & Especiais</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button data-tab="tab-sql">
+            <span class="nav-icon">[S]</span>
+            <span>SQL Studio Interativo</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button data-tab="tab-schema">
+            <span class="nav-icon">[B]</span>
+            <span>Arquitetura do Banco</span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div class="live-indicator">
+          <div class="dot-pulse"></div>
+          <span>Banco Relacional SQLite Conectado</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-wrapper">
+      
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="page-title">
+          <h2 id="header-title">Panorama Executivo</h2>
+          <p id="header-subtitle">Visão consolidada da indústria farmacêutica brasileira, preços e cadeias produtivas</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-secondary" onclick="window.location.reload()">
+            Atualizar Dados
+          </button>
+          <a href="/api/stats" target="_blank" class="btn-primary" style="text-decoration: none;">
+            Exportar Métricas (JSON)
+          </a>
+        </div>
+      </header>
+
+      <!-- ========================================================================= -->
+      <!-- TAB 1: PANORAMA EXECUTIVO (OVERVIEW) -->
+      <!-- ========================================================================= -->
+      <section id="tab-overview" class="tab-content active">
+        
+        <!-- KPI Cards Grid -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-label">Apresentações CMED</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-total-cmed">Carregando...</div>
+            <div class="kpi-subtext" id="kpi-subtext-cmed">Preços regulados no Brasil</div>
+          </div>
+
+          <div class="kpi-card success">
+            <div class="kpi-header">
+              <span class="kpi-label">Fábricas Mapeadas</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-total-fabricantes">Carregando...</div>
+            <div class="kpi-subtext" id="kpi-total-paises">Carregando países...</div>
+          </div>
+
+          <div class="kpi-card warning">
+            <div class="kpi-header">
+              <span class="kpi-label">Importação & Terceirização</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-perc-import">Carregando...</div>
+            <div class="kpi-subtext">Fábricas fora da matriz da marca</div>
+          </div>
+
+          <div class="kpi-card purple">
+            <div class="kpi-header">
+              <span class="kpi-label">Laboratórios / Marcas</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-total-empresas">Carregando...</div>
+            <div class="kpi-subtext">Com CNPJ e QSA da Receita</div>
+          </div>
+
+          <div class="kpi-card info">
+            <div class="kpi-header">
+              <span class="kpi-label">Capital Social Acumulado</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-capital-total">Carregando...</div>
+            <div class="kpi-subtext">Capital das detentoras no Brasil</div>
+          </div>
+        </div>
+
+        <!-- Overview Control Toolbar: Toggle Unmapped + Help Info -->
+        <div class="overview-toolbar">
+          <div class="overview-toolbar-left">
+            <label class="switch-toggle-label">
+              <input type="checkbox" id="toggle-unmapped">
+              <span class="switch-slider"></span>
+              <span class="switch-text"><strong>Exibir registros não mapeados na ANVISA</strong> (em cinza nos gráficos)</span>
+            </label>
+          </div>
+          <div class="overview-toolbar-right">
+            <div class="coverage-pill">
+              <span class="status-dot-green"></span>
+              <span>Cobertura ANVISA Direta: <strong id="kpi-cobertura-txt">8.533 / 26.941</strong> apresentações</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid 1: Modelos Produtivos & Geografia -->
+        <div class="charts-grid-2">
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Modelo Produtivo: Quem Realmente Fabrica?</h3>
+                <p>Fabricação Própria vs Terceirização Nacional (CMO) vs Importação <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartModelos"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Geografia da Produção (Top Países Fornecedores)</h3>
+                <p>Volume de apresentações por país de fabricação real <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartPaises"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: Relações Industriais: Sankey (Principal) & Grafo de Rede (Secundário) -->
+        <div class="chart-card full-width-card" style="margin-top: 24px;">
+          <div class="chart-header" style="flex-wrap: wrap; gap: 12px;">
+            <div class="chart-title">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 id="rel-title">Fluxo Industrial: Laboratórios Detentores  Plantas Fabris (Sankey)</h3>
+              </div>
+              <p id="rel-desc">Mapeamento dos fluxos produtivos e de terceirização entre marcas detentoras do registro e as unidades industriais executoras. <strong>Passe o mouse para ver volumes ou clique para detalhar.</strong></p>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+              <!-- View Switcher Subtabs -->
+              <div class="drilldown-tabs" style="margin: 0; background: var(--bg-card-subtle); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <button id="btn-view-sankey" class="drill-tab active" onclick="switchRelView('sankey')" style="font-weight: 700;">
+                  Fluxo Sankey (Principal)
+                </button>
+                <button id="btn-view-network" class="drill-tab" onclick="switchRelView('network')" style="font-weight: 600;">
+                  Grafo de Rede (Interconexões)
+                </button>
+              </div>
+
+              <!-- Controls for Network View (Hidden by default) -->
+              <div id="network-controls" style="display: none; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 4px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                  <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-card-subtle); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <input type="checkbox" id="toggle-net-empresas">
+                    <span>Todas as Empresas (incluir singulares)</span>
+                  </label>
+                  <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-card-subtle); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <input type="checkbox" id="toggle-net-fabricas">
+                    <span>Todas as Fábricas (incluir singulares)</span>
+                  </label>
+                  <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-card-subtle); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <input type="checkbox" id="toggle-net-all-links">
+                    <span>Expandir Todas as Ligações</span>
+                  </label>
+                  <button class="btn-secondary btn-xs" onclick="resetNetworkView()" title="Centralizar visualização" style="font-weight: 600; padding: 6px 12px;">
+                    Centralizar Vista
+                  </button>
+                </div>
+
+                <div class="network-legend" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px;">
+                  <span class="legend-chip detentora" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 9px;">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #2563eb;"></span>
+                    Laboratório Detentor (Círculo Azul)
+                  </span>
+                  <span class="legend-chip fabrica-nac" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 9px; background: #ecfdf5; border-color: #a7f3d0; color: #047857;">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: #10b981;"></span>
+                    Fábrica Própria Nacional (Quadrado Verde)
+                  </span>
+                  <span class="legend-chip fabrica-cmo" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 9px; background: #fffbeb; border-color: #fde68a; color: #b45309;">
+                    <span style="display: inline-block; width: 8px; height: 8px; transform: rotate(45deg); background: #f59e0b;"></span>
+                    Fábrica Terceirizada / CMO (Losango Laranja)
+                  </span>
+                  <span class="legend-chip fabrica-int" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 9px; background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9;">
+                    <span style="display: inline-block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 10px solid #8b5cf6;"></span>
+                    Fábrica Internacional (Triângulo Roxo / Importação)
+                  </span>
+                  <span class="legend-chip singular" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 9px; background: #fef2f2; border-color: #fecaca; color: #b91c1c;">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
+                    Nó Singular / Sem Conexão Direta (Vermelho)
+                  </span>
+                </div>
+              </div>
+
+              <!-- Controls for Sankey View (Visible by default) -->
+              <div id="sankey-controls" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 6px;">
+                <!-- Legend Chips -->
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <span class="legend-chip detentora" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 8px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: #1d4ed8;"></span>
+                    Laboratório (Origem)
+                  </span>
+                  <span class="legend-chip fabrica-nac" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 8px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: #059669;"></span>
+                    Planta Fabril (Destino)
+                  </span>
+                </div>
+
+                <!-- Controls: Densidade de Fluxo (Espessura) -->
+                <div class="drilldown-tabs" style="margin: 0; padding: 2px;">
+                  <button id="btn-sankey-top20" class="drill-tab btn-sankey-density" onclick="setSankeyLimit(20)" title="Filtra os 20 maiores fluxos, deixando as faixas substancialmente mais espessas">
+                    Top 20 (Mais Espessos)
+                  </button>
+                  <button id="btn-sankey-top30" class="drill-tab btn-sankey-density active" onclick="setSankeyLimit(30)" title="Visualização equilibrada com 30 maiores conexões">
+                    Top 30 (Recomendado)
+                  </button>
+                  <button id="btn-sankey-top45" class="drill-tab btn-sankey-density" onclick="setSankeyLimit(45)" title="Exibe 45 fluxos mapeados">
+                    Top 45 (Completo)
+                  </button>
+                </div>
+
+                <!-- Controls: Modo de Cor -->
+                <div class="drilldown-tabs" style="margin: 0; padding: 2px;">
+                  <button id="btn-sankey-mode-gradient" class="drill-tab btn-sankey-colormode active" onclick="setSankeyColorMode('gradient')" title="Gradiente vibrante do laboratório à fábrica">
+                    Gradiente Vibrante
+                  </button>
+                  <button id="btn-sankey-mode-source" class="drill-tab btn-sankey-colormode" onclick="setSankeyColorMode('source')" title="Traços tingidos com a cor sólida do laboratório">
+                    Cor por Laboratório
+                  </button>
+                </div>
+
+                <!-- Controls: Intensidade / Opacidade -->
+                <div class="drilldown-tabs" style="margin: 0; padding: 2px;">
+                  <button id="btn-sankey-op-high" class="drill-tab btn-sankey-opacity active" onclick="setSankeyOpacity(0.75)" title="Traços bem destacados com 75% de opacidade">
+                    Traço Forte (75%)
+                  </button>
+                  <button id="btn-sankey-op-max" class="drill-tab btn-sankey-opacity" onclick="setSankeyOpacity(0.92)" title="Traços com saturação máxima quase sólida">
+                    Sólido (92%)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subtab 1: Sankey Canvas Wrapper -->
+          <div id="sankey-wrapper" style="position: relative; width: 100%; min-height: 660px; background: #ffffff; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; margin-top: 12px; box-shadow: var(--shadow-sm);">
+            <div id="sankey-container" style="width: 100%; height: 660px; min-height: 660px;"></div>
+            <div class="network-instructions-overlay">
+              Passe o cursor sobre os traços para inspecionar o volume de medicamentos • Clique em um laboratório ou fábrica para listar os produtos detalhados na tabela abaixo
+            </div>
+          </div>
+
+          <!-- Subtab 2: Vis.Network Canvas Wrapper (Hidden behind tab) -->
+          <div id="network-wrapper" class="network-wrapper" style="display: none; margin-top: 12px;">
+            <div id="network-container" class="network-canvas"></div>
+            <div class="network-instructions-overlay">
+              Use a roda do mouse para zoom • Arraste os nós para reorganizar • Clique em um nó para abrir a tabela abaixo
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid 3: Concentração Fabril Nacional & Preço Médio por Origem -->
+        <div class="charts-grid-2" style="margin-top: 24px;">
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Polos Fabris Farmacêuticos no Brasil (UF da Fábrica)</h3>
+                <p>Concentração das fábricas reais por estado (SP, GO/DAIA, MG, AM, PR, RJ) <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartUfNacional"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Disparidade de Preço Teto Médio (PF 18%) por Origem</h3>
+                <p>Comparativo de preço regulado médio entre produção nacional e importada <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartPrecoOrigem"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid 4: Engenharia Farmacêutica (Formas & Embalagens) -->
+        <div class="charts-grid-2" style="margin-top: 24px;">
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Formas Farmacêuticas Oficiais (ANVISA)</h3>
+                <p>Distribuição das formas aprovadas regulatoriamente <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartFormas"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Tecnologia de Embalagens Primárias</h3>
+                <p>Materiais predominantes (Blister Alu-Alu, Plástico, Vidro, etc.) <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartEmbalagens"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid 5: Classes Terapêuticas & Tarjas Regulatórias (NOVO) -->
+        <div class="charts-grid-2" style="margin-top: 24px;">
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Top Classes Terapêuticas & Farmacológicas</h3>
+                <p>Volume de registros, laboratórios concorrentes e preços médios por especialidade <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartClasses"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card clickable-card">
+            <div class="chart-header">
+              <div class="chart-title">
+                <h3>Classificação Regulatória por Tarja Sanitária</h3>
+                <p>Grau de controle de prescrição e retenção de receita na ANVISA <span class="chart-click-hint">Clique para filtrar</span></p>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartTarjas"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid 6: Moléculas / Princípios Ativos Mais Concorridos (NOVO) -->
+        <div class="chart-card full-width-card clickable-card" style="margin-top: 24px;">
+          <div class="chart-header">
+            <div class="chart-title">
+              <h3>Princípios Ativos Mais Disputados no Mercado Farmacêutico</h3>
+              <p>Top moléculas com maior volume de concorrência: Comparativo entre <strong>Marcas/Detentoras</strong> e <strong>Plantas Fabris Produtoras</strong> <span class="chart-click-hint">Clique em uma substância para filtrar</span></p>
+            </div>
+          </div>
+          <div class="chart-container" style="height: 380px;">
+            <canvas id="chartMoleculas"></canvas>
+          </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- SEÇÃO DE DETALHAMENTO DINÂMICO (DRILLDOWN SECTION) -->
+        <!-- ========================================================================= -->
+        <div id="drilldown-section" class="data-card drilldown-card" style="margin-top: 28px;">
+          <div class="drilldown-header">
+            <div class="drilldown-title-box">
+              <div class="drilldown-badge" id="drilldown-badge">Detalhamento Dinâmico de Seleção</div>
+              <h3 id="drilldown-heading">Exibindo todos os dados do catálogo</h3>
+              <p id="drilldown-subheading">Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.</p>
+            </div>
+
+            <div class="drilldown-controls">
+              <div class="drilldown-tabs">
+                <button class="drill-tab active" data-type="medicamentos" onclick="switchDrilldownEntity('medicamentos')">
+                  Medicamentos (<span id="drill-count-meds">0</span>)
+                </button>
+                <button class="drill-tab" data-type="fabricas" onclick="switchDrilldownEntity('fabricas')">
+                  Fábricas (<span id="drill-count-fabs">0</span>)
+                </button>
+                <button class="drill-tab" data-type="empresas" onclick="switchDrilldownEntity('empresas')">
+                  Detentoras (<span id="drill-count-emps">0</span>)
+                </button>
+              </div>
+              <button class="btn-clear-drill" onclick="resetDrilldown()">
+                Limpar Filtro / Ver Todos
+              </button>
+            </div>
+          </div>
+
+          <!-- Drilldown Search & Sort Filter Bar -->
+          <div class="drilldown-search-bar">
+            <div class="search-input-group" style="flex: 1;">
+              <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
+              <input type="text" id="drilldown-search-input" placeholder="Buscar nesta seleção por medicamento, substância, detentora, fábrica...">
+            </div>
+            <div class="drilldown-pagination-info" id="drilldown-page-info">
+              Mostrando registros
+            </div>
+          </div>
+
+          <!-- Dynamic Drilldown Table -->
+          <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+            <table class="modern-table sortable-table" id="drilldown-table">
+              <thead id="drilldown-thead">
+                <!-- Dynamically populated based on entity -->
+              </thead>
+              <tbody id="drilldown-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Drilldown Table Footer / Pagination -->
+          <div class="table-footer-pagination">
+            <span id="drilldown-summary-text">Carregando registros...</span>
+            <div class="pagination-controls">
+              <button class="pagination-btn" id="btn-drill-prev" onclick="changeDrillPage(-1)">← Anterior</button>
+              <button class="pagination-btn" id="btn-drill-next" onclick="changeDrillPage(1)">Próximo →</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TAB 2: EXPLORADOR DE MEDICAMENTOS -->
+      <!-- ========================================================================= -->
+      <section id="tab-medicamentos" class="tab-content">
+        
+        <div class="data-card">
+          <div class="data-card-header">
+            <div class="filter-bar">
+              <div class="search-input-group">
+                <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
+                <input type="text" id="search-medicamento" placeholder="Buscar por Remédio, Princípio Ativo, Fábrica, Detentora ou Registro...">
+              </div>
+
+              <select id="filter-pais" class="custom-select">
+                <option value="">Todos os Países de Fabricação</option>
+              </select>
+
+              <select id="filter-tipo" class="custom-select">
+                <option value="">Todos os Tipos de Fábrica</option>
+                <option value="NACIONAL">Nacional</option>
+                <option value="INTERNACIONAL">Internacional (Importado)</option>
+              </select>
+
+              <select id="filter-tarja" class="custom-select">
+                <option value="">Todas as Tarjas Sanitárias</option>
+                <option value="Tarja Vermelha">Tarja Vermelha (Prescrição)</option>
+                <option value="Tarja Vermelha (Retenção de Receita)">Tarja Vermelha (Retenção de Receita)</option>
+                <option value="Tarja Preta">Tarja Preta (Controle Especial)</option>
+                <option value="Isento de Prescrição (MIP)">Isento de Prescrição (MIP / Sem Tarja)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-responsive">
+            <table class="modern-table sortable-table">
+              <thead>
+                <tr>
+                  <th class="sortable-th" onclick="sortMedicamentosTab('produto')">Medicamento & Princípio <span class="sort-icon" id="sort-med-produto">↕</span></th>
+                  <th class="sortable-th" onclick="sortMedicamentosTab('detentora')">Detentora da Marca (CMED) <span class="sort-icon" id="sort-med-detentora">↕</span></th>
+                  <th class="sortable-th" onclick="sortMedicamentosTab('fabrica')">Fábrica Real (ANVISA) <span class="sort-icon" id="sort-med-fabrica">↕</span></th>
+                  <th>Forma & Embalagem</th>
+                  <th class="sortable-th" onclick="sortMedicamentosTab('tarja')">Tarja <span class="sort-icon" id="sort-med-tarja">↕</span></th>
+                  <th class="sortable-th" onclick="sortMedicamentosTab('pf_18')">Preço Teto (PF 18%) <span class="sort-icon" id="sort-med-pf_18">↕</span></th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="medicamentos-table-body">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="pagination-footer">
+            <div id="table-pagination-info">Carregando paginação...</div>
+            <div class="pagination-controls">
+              <button id="btn-prev" class="pagination-btn">← Anterior</button>
+              <button id="btn-next" class="pagination-btn">Próximo →</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TAB 3: LABORATÓRIOS & RECEITA FEDERAL -->
+      <!-- ========================================================================= -->
+      <section id="tab-empresas" class="tab-content">
+        
+        <div class="data-card">
+          <div class="data-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3 style="font-size: 16px; font-weight: 700;">Laboratórios Farmacêuticos Credenciados</h3>
+              <p style="font-size: 13px; color: var(--text-muted);">260 empresas enriquecidas com dados cadastrais e Quadro de Sócios e Administradores (QSA)</p>
+            </div>
+            <div class="search-input-group" style="max-width: 320px;">
+              <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
+              <input type="text" id="search-empresa" placeholder="Filtrar laboratório ou sócio...">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="modern-table sortable-table">
+              <thead>
+                <tr>
+                  <th class="sortable-th" onclick="sortEmpresasTab('razao_social')">Razão Social / Nome Fantasia <span class="sort-icon" id="sort-emp-razao_social">↕</span></th>
+                  <th>CNPJ</th>
+                  <th class="sortable-th" onclick="sortEmpresasTab('uf')">UF Sede <span class="sort-icon" id="sort-emp-uf">↕</span></th>
+                  <th class="sortable-th" onclick="sortEmpresasTab('capital_social')">Capital Social <span class="sort-icon" id="sort-emp-capital_social">↕</span></th>
+                  <th class="sortable-th" onclick="sortEmpresasTab('total_produtos_cmed')">Total de Produtos <span class="sort-icon" id="sort-emp-total_produtos_cmed">↕</span></th>
+                  <th>Quadro Societário (Sócios / Donos)</th>
+                  <th>Ações & QSA</th>
+                </tr>
+              </thead>
+              <tbody id="empresas-table-body">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TAB: FITOTERÁPICOS & MEDICAMENTOS ESPECIAIS (MOTIVO 3) -->
+      <!-- ========================================================================= -->
+      <section id="tab-especiais" class="tab-content">
+        
+        <!-- Summary KPI Cards -->
+        <div class="kpi-grid" style="margin-bottom: 20px;">
+          <div class="kpi-card success">
+            <div class="kpi-header">
+              <span class="kpi-label">Fitoterápicos</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-esp-fito">1.234</div>
+            <div class="kpi-subtext">Plantas medicinais e fitofármacos</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-label">Medicamentos Específicos</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-esp-espec">1.543</div>
+            <div class="kpi-subtext">Soluções parenterais, antissépticos</div>
+          </div>
+
+          <div class="kpi-card purple">
+            <div class="kpi-header">
+              <span class="kpi-label">Biológicos & Biossimilares</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-esp-biol">969</div>
+            <div class="kpi-subtext">Anticorpos monoclonais e vacinas</div>
+          </div>
+
+          <div class="kpi-card info">
+            <div class="kpi-header">
+              <span class="kpi-label">Dinamizados / Homeopáticos</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-esp-dinam">277</div>
+            <div class="kpi-subtext">Antroposóficos e homeopatia</div>
+          </div>
+
+          <div class="kpi-card warning">
+            <div class="kpi-header">
+              <span class="kpi-label">Radiofármacos</span>
+              
+            </div>
+            <div class="kpi-value" id="kpi-esp-radio">52</div>
+            <div class="kpi-subtext">Diagnóstico e terapia nuclear</div>
+          </div>
+        </div>
+
+        <div class="data-card">
+          <div class="data-card-header">
+            <div class="filter-bar">
+              <div class="search-input-group">
+                <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
+                <input type="text" id="search-especial" placeholder="Buscar por Produto Especial, Princípio Ativo, Detentora ou Registro...">
+              </div>
+
+              <select id="filter-especial-cat" class="custom-select">
+                <option value="">Todas as Categorias Especiais</option>
+                <option value="Fitoter">Fitoterápico</option>
+                <option value="Espec">Específico</option>
+                <option value="Biol">Biológico</option>
+                <option value="Dinamiz">Dinamizado / Homeopático</option>
+                <option value="Radiof">Radiofármaco</option>
+              </select>
+
+              <select id="filter-especial-status" class="custom-select">
+                <option value="">Todas as Situações</option>
+                <option value="Ativo">Ativo na ANVISA</option>
+                <option value="Inativo">Inativo / Caduco</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-responsive">
+            <table class="modern-table sortable-table">
+              <thead>
+                <tr>
+                  <th class="sortable-th" onclick="sortEspeciaisTab('nome')">Produto & Princípio Ativo <span class="sort-icon" id="sort-esp-nome">↕</span></th>
+                  <th class="sortable-th" onclick="sortEspeciaisTab('categoria')">Categoria Regulatória <span class="sort-icon" id="sort-esp-categoria">↕</span></th>
+                  <th class="sortable-th" onclick="sortEspeciaisTab('detentora')">Empresa Detentora (Atualizada) <span class="sort-icon" id="sort-esp-detentora">↕</span></th>
+                  <th>Classe / Processo</th>
+                  <th class="sortable-th" onclick="sortEspeciaisTab('situacao')">Situação <span class="sort-icon" id="sort-esp-situacao">↕</span></th>
+                  <th class="sortable-th" onclick="sortEspeciaisTab('total_apresentacoes')">Apresentações <span class="sort-icon" id="sort-esp-total_apresentacoes">↕</span></th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="especiais-table-body">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="pagination-footer">
+            <div id="especiais-pagination-info">Carregando paginação...</div>
+            <div class="pagination-controls">
+              <button id="btn-esp-prev" class="pagination-btn">← Anterior</button>
+              <button id="btn-esp-next" class="pagination-btn">Próximo →</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TAB 4: SQL STUDIO INTERATIVO -->
+      <!-- ========================================================================= -->
+      <section id="tab-sql" class="tab-content">
+        
+        <div class="sql-container">
+          <div class="sql-editor-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h3 style="font-size: 16px; font-weight: 700;">Consulta SQL em Tempo Real (SQLite)</h3>
+              <span style="font-size: 12px; color: var(--text-muted);">Banco Mestre: <code>industria_farmaceutica_master.db</code></span>
+            </div>
+
+            <!-- Presets -->
+            <div class="sql-presets">
+              <span style="font-size: 12px; font-weight: 600; color: var(--text-main); margin-right: 6px;">Exemplos Prontos:</span>
+              <button class="preset-chip" data-sql="SELECT produto_nome, detentora_marca, fabrica_real, pais_fabrica, pf_18 FROM vw_catalogo_completo WHERE tipo_fabricante = 'INTERNACIONAL' ORDER BY pf_18 DESC LIMIT 20;">
+                Remédios Importados Mais Caros
+              </button>
+              <button class="preset-chip" data-sql="SELECT fabrica_real, pais_fabrica, count(DISTINCT registro_13) as total_medicamentos FROM vw_catalogo_completo WHERE pais_fabrica = 'ÍNDIA' GROUP BY fabrica_real ORDER BY total_medicamentos DESC;">
+                Maiores Fábricas Indianas que Vendem no Brasil
+              </button>
+              <button class="preset-chip" data-sql="SELECT detentora_marca, fabrica_real, modelo_producao, total_medicamentos FROM vw_terceirizacao_marcas WHERE modelo_producao LIKE '%TERCEIRIZACAO%' ORDER BY total_medicamentos DESC LIMIT 20;">
+                Principais Terceirizações Nacionais (CMO)
+              </button>
+              <button class="preset-chip" data-sql="SELECT razao_social, capital_social, total_produtos_cmed, socios_donos_administradores FROM empresas_detentoras ORDER BY capital_social DESC LIMIT 15;">
+                Laboratórios com Maior Capital Social
+              </button>
+            </div>
+
+            <textarea id="sql-query-input" class="sql-textarea" placeholder="Digite sua consulta SQL aqui...">SELECT produto_nome, detentora_marca, fabrica_real, pais_fabrica, pf_18 
+FROM vw_catalogo_completo 
+WHERE pais_fabrica != 'BRASIL' 
+ORDER BY pf_18 DESC 
+LIMIT 20;</textarea>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div id="sql-status" style="font-size: 13px; color: var(--text-muted);">Pronto para executar.</div>
+              <button id="btn-run-sql" class="btn-primary">
+                ▶ Executar SQL
+              </button>
+            </div>
+          </div>
+
+          <!-- SQL Results Card -->
+          <div class="data-card">
+            <div class="data-card-header">
+              <h4 style="font-size: 14px; font-weight: 700;">Resultado da Consulta</h4>
+            </div>
+            <div id="sql-results">
+              <div style="padding: 40px; text-align: center; color: var(--text-muted);">Execute uma consulta acima para ver os resultados aqui.</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TAB 5: ARQUITETURA DO BANCO DE DADOS -->
+      <!-- ========================================================================= -->
+      <section id="tab-schema" class="tab-content">
+        
+        <div class="data-card" style="padding: 32px;">
+          <h3 style="font-family: var(--font-display); font-size: 20px; font-weight: 700; margin-bottom: 8px;">
+            Estrutura Relacional do Banco de Dados Mestre
+          </h3>
+          <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 28px;">
+            O banco <code>industria_farmaceutica_master.db</code> une em um único esquema relacional normalizado as 3 esferas de dados do setor farmacêutico: Governamental (CMED), Sanitária/Técnica (ANVISA) e Societária (Receita Federal).
+          </p>
+
+          <div class="kpi-grid" style="margin-bottom: 24px;">
+            <div class="info-block">
+              <h4>1. empresas_detentoras</h4>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Base: Receita Federal (BrasilAPI / MinhaReceita)</p>
+              <div style="font-size: 12px; line-height: 1.8;">
+                <strong>Chave Primária:</strong> <code>cnpj_limpo</code><br>
+                <strong>Campos-chave:</strong> Razão Social, Sócios/Administradores (QSA), Capital Social, CNAE, Endereço, UF, Telefone.
+              </div>
+            </div>
+
+            <div class="info-block">
+              <h4>2. cmed_produtos_precos</h4>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Base: CMED / Ministério da Saúde</p>
+              <div style="font-size: 12px; line-height: 1.8;">
+                <strong>Chave Primária:</strong> <code>registro_13</code><br>
+                <strong>Chave Estrangeira:</strong> <code>cnpj_limpo</code> → <code>empresas_detentoras</code><br>
+                <strong>Campos-chave:</strong> Preço Fábrica (PF 0%, 18%, 20%), PMVG, Código GGREM, EAN, Classe Terapêutica (ATC).
+              </div>
+            </div>
+
+            <div class="info-block">
+              <h4>3. anvisa_produtos</h4>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Base: ANVISA ConsultaWeb (API Mestre)</p>
+              <div style="font-size: 12px; line-height: 1.8;">
+                <strong>Chave Primária:</strong> <code>id_produto</code><br>
+                <strong>Campos-chave:</strong> Número do Processo, Categoria Regulatória (Novo, Genérico, Similar), URL Pública ANVISA.
+              </div>
+            </div>
+
+            <div class="info-block">
+              <h4>4. anvisa_apresentacoes</h4>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Base: Ficha Técnica Oficial da ANVISA</p>
+              <div style="font-size: 12px; line-height: 1.8;">
+                <strong>Chaves:</strong> <code>id_apresentacao</code> (PK), <code>id_produto</code> (FK), <code>numero_registro_13</code> (FK)<br>
+                <strong>Campos-chave:</strong> Formas Farmacêuticas Oficiais, Vias de Administração, Embalagem Primária/Secundária com micras.
+              </div>
+            </div>
+
+            <div class="info-block">
+              <h4>5. anvisa_fabricantes</h4>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Base: Cadeia Fabril & Terceirização (CMO)</p>
+              <div style="font-size: 12px; line-height: 1.8;">
+                <strong>Chaves:</strong> <code>id_fabricante_rel</code> (PK), <code>numero_registro_13</code> (FK)<br>
+                <strong>Campos-chave:</strong> Razão Social da Fábrica, CNPJ Fábrica, País, UF, Cidade, Etapa de Fabricação.
+              </div>
+            </div>
+          </div>
+
+          <div style="background-color: var(--bg-card-subtle); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <h4 style="font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">Views Otimizadas para Inteligência de Mercado:</h4>
+            <ul style="font-size: 13px; line-height: 1.9; padding-left: 20px;">
+              <li><code>vw_catalogo_completo</code>: Faz o <code>JOIN</code> mestre unindo o preço da CMED, a titularidade societária da Receita Federal e a fábrica real com as especificações de embalagem da ANVISA.</li>
+              <li><code>vw_terceirizacao_marcas</code>: Cruza o CNPJ da detentora com o CNPJ da fábrica e classifica cada produto em <em>Fabricação Própria</em>, <em>Terceirização Nacional (CMO)</em> ou <em>Importação</em>.</li>
+              <li><code>vw_geografia_fabricacao</code>: Agrupa os medicamentos por país, estado (UF) e cidade para mapear a geopolítica do abastecimento farmacêutico.</li>
+            </ul>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: RAIO-X COMPLETO DO MEDICAMENTO -->
+  <!-- ========================================================================= -->
+  <div id="modal-medicamento" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-produto-nome">Nome do Medicamento</h3>
+          <p id="modal-substancia" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;"></p>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        
+        <!-- Grid 1: CMED & Preços + Detentora -->
+        <div class="modal-grid-2">
+          
+          <div class="info-block">
+            <h4> Regulação de Preços (CMED)</h4>
+            <div class="info-row">
+              <span>Preço Fábrica (PF 18%):</span>
+              <span id="m-preco-pf18" style="color: var(--primary); font-size: 15px;">...</span>
+            </div>
+            <div class="info-row">
+              <span>Preço Máximo Governo (PMVG):</span>
+              <span id="m-preco-pmvg18">...</span>
+            </div>
+            <div class="info-row">
+              <span>Código GGREM:</span>
+              <span id="m-ggrem">...</span>
+            </div>
+            <div class="info-row">
+              <span>Código de Barras (EAN):</span>
+              <span id="m-ean">...</span>
+            </div>
+            <div class="info-row">
+              <span>Classe Terapêutica (ATC):</span>
+              <span id="m-classe-terap">...</span>
+            </div>
+          </div>
+
+          <div class="info-block">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="margin: 0;">Empresa Detentora da Marca (Receita)</h4>
+              <button id="btn-m-detentora-qsa" class="btn-primary btn-sm" style="font-size: 11px; padding: 4px 10px;">
+                Ver Ficha Societária & Contatos
+              </button>
+            </div>
+            <div class="info-row">
+              <span>Razão Social:</span>
+              <span id="m-detentora-nome">...</span>
+            </div>
+            <div class="info-row">
+              <span>CNPJ:</span>
+              <span id="m-detentora-cnpj">...</span>
+            </div>
+            <div class="info-row">
+              <span>Capital Social:</span>
+              <span id="m-detentora-capital">...</span>
+            </div>
+            <div class="info-row">
+              <span>Contatos:</span>
+              <span id="m-detentora-contato">...</span>
+            </div>
+            <div class="info-row">
+              <span>Sócios & Administradores:</span>
+              <span id="m-detentora-socios" style="font-size: 11px;">...</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Grid 2: Engenharia ANVISA & Embalagem -->
+        <div class="info-block" style="margin-bottom: 20px;">
+          <h4>Engenharia e Especificações Oficiais (ANVISA)</h4>
+          <div class="info-row">
+            <span>Forma Farmacêutica:</span>
+            <span id="m-anvisa-forma">...</span>
+          </div>
+          <div class="info-row">
+            <span>Via de Administração:</span>
+            <span id="m-anvisa-via">...</span>
+          </div>
+          <div class="info-row">
+            <span>Embalagem Primária:</span>
+            <span id="m-anvisa-embalagem-prim">...</span>
+          </div>
+          <div class="info-row">
+            <span>Detalhes / Material:</span>
+            <span id="m-anvisa-embalagem-detalhes" style="font-size: 11px; color: var(--text-muted);">...</span>
+          </div>
+          <div class="info-row">
+            <span>Embalagem Secundária:</span>
+            <span id="m-anvisa-embalagem-sec">...</span>
+          </div>
+        </div>
+
+        <!-- Fabricantes Reais Mapeados -->
+        <div class="info-block">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4>Fábricas Reais da Cadeia de Produção</h4>
+            <a id="m-link-anvisa" href="#" target="_blank" class="btn-secondary" style="padding: 4px 10px; font-size: 12px; text-decoration: none;">
+              Abrir Ficha no Portal ANVISA
+            </a>
+          </div>
+          <div id="modal-fabricantes-list">
+            <!-- Dynamic list -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: QUADRO SOCIETÁRIO & CONTATOS EMPRESARIAIS (QSA 360°) -->
+  <!-- ========================================================================= -->
+  <div id="modal-societario" class="modal-overlay">
+    <div class="modal-container" style="max-width: 840px;">
+      
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <span id="soc-tipo-badge" class="badge badge-success">Fábrica Nacional</span>
+            <span id="soc-situacao-badge" class="badge badge-info">Ativa</span>
+          </div>
+          <h2 id="soc-razao-social" style="font-size: 19px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">Razão Social da Entidade</h2>
+          <div style="font-size: 13px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+            <span id="soc-nome-fantasia" style="font-weight: 600; color: var(--primary);"></span>
+            <span>CNPJ: <code id="soc-cnpj" style="font-size: 13px; font-weight: 600;">...</code></span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeSocietarioModal()">&times;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body" style="padding: 24px; max-height: calc(85vh - 90px); overflow-y: auto;">
+        
+        <!-- Channels & Contacts Banner (Website, Email, Phone, Address) -->
+        <div style="background: linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%); border: 1px solid #bbf7d0; border-radius: var(--radius-md); padding: 18px 20px; margin-bottom: 22px; box-shadow: var(--shadow-sm);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="flex: 1; min-width: 280px;">
+              <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #166534; letter-spacing: 0.05em; margin-bottom: 8px;">
+                Canais de Contato & Presença Digital
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 8px;">
+                <div id="soc-telefone-box" style="font-size: 13px; font-weight: 600; color: var(--text-main);">
+                  <span style="font-size: 11px; font-weight: bold; color: var(--primary); margin-right: 4px;">TEL:</span> <span id="soc-telefone">Não informado</span>
+                </div>
+                <div id="soc-email-box" style="font-size: 13px; font-weight: 600; color: var(--text-main);">
+                  <span style="font-size: 11px; font-weight: bold; color: var(--primary); margin-right: 4px;">EMAIL:</span> <a id="soc-email" href="#" style="color: var(--primary); text-decoration: none;">-</a>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                <span style="font-size: 11px; font-weight: bold; color: var(--primary); margin-right: 4px;">END:</span> <span id="soc-endereco">Endereço Completo...</span>
+              </div>
+            </div>
+
+            <div id="soc-website-container" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <a id="soc-website-btn" href="#" target="_blank" class="btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; font-weight: 700; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);">
+                Acessar Website Oficial
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Corporate Facts Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 22px;">
+          <div class="kpi-card" style="padding: 14px 18px;">
+            <span class="kpi-label">Capital Social</span>
+            <div class="kpi-value" id="soc-capital" style="font-size: 19px; color: #059669;">R$ 0,00</div>
+            <div class="kpi-subtext" id="soc-inicio-ativ">Início de atividade: -</div>
+          </div>
+          <div class="kpi-card" style="padding: 14px 18px;">
+            <span class="kpi-label">Atividade Econômica (CNAE)</span>
+            <div class="kpi-value" id="soc-cnae" style="font-size: 14px; font-weight: 700; color: var(--text-main);">-</div>
+            <div class="kpi-subtext" id="soc-cnae-desc" style="white-space: normal; line-height: 1.3;">-</div>
+          </div>
+          <div class="kpi-card" style="padding: 14px 18px;">
+            <span class="kpi-label">Quadro de Sócios (QSA)</span>
+            <div class="kpi-value" id="soc-total-socios" style="font-size: 19px; color: var(--primary);">0</div>
+            <div class="kpi-subtext">Sócios e Administradores</div>
+          </div>
+        </div>
+
+        <!-- Sócios e Administradores Section -->
+        <div class="info-block" style="margin-bottom: 22px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <h4 style="margin: 0; font-size: 14px; font-weight: 700;">Quadro de Sócios e Administradores Registrados</h4>
+            <span id="soc-badge-origem" class="badge badge-secondary" style="font-size: 11px;">Receita Federal do Brasil</span>
+          </div>
+          <div id="soc-socios-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Dynamic partner cards -->
+          </div>
+        </div>
+
+        <!-- Produtos Vinculados (Portfólio na Base) -->
+        <div class="info-block">
+          <h4 style="margin-bottom: 12px; font-size: 14px; font-weight: 700;">Medicamentos e Portfólio Vinculado na Base</h4>
+          <div id="soc-produtos-list" class="table-responsive">
+            <!-- Dynamic products table -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Scripts -->
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
