@@ -187,21 +187,112 @@
           </div>
         </div>
 
-        <!-- Overview Control Toolbar: Toggle Unmapped + Help Info -->
-        <div class="overview-toolbar">
-          <div class="overview-toolbar-left">
-            <label class="switch-toggle-label">
+        <!-- Overview Control Toolbar: Toggle Unmapped + Chart Filters + Help Info -->
+        <div class="overview-toolbar" style="flex-wrap: wrap; gap: 12px; padding: 12px 18px;">
+          <div class="overview-toolbar-left" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+            <!-- Independent Chart Filters Menu -->
+            <div class="chart-filter-menu-wrapper" id="chart-filter-menu-wrapper">
+              <button id="btn-chart-filters-toggle" class="btn-chart-filters-menu" onclick="toggleChartFilterMenu()">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                <span>Menu de Filtros dos Gráficos</span>
+                <span id="chart-filter-count-badge" class="badge-count" style="display:none; background:#059669; color:#fff; font-size:10px; border-radius:10px; padding:1px 6px; font-weight:700;">0</span>
+                <span style="font-size: 10px;">▼</span>
+              </button>
+
+              <div id="chart-filters-popover" class="chart-filters-popover">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                  <strong style="font-size: 13px; color: var(--text-dark);">Filtros Exclusivos dos Gráficos</strong>
+                  <button type="button" class="btn-sm btn-secondary" onclick="toggleChartFilterMenu()" style="padding: 2px 8px; font-size: 11px;">Fechar X</button>
+                </div>
+
+                <!-- Segmento Toggle Options -->
+                <div class="chart-filter-group">
+                  <div class="chart-filter-group-title">Segmento Regulatório (Clique para alternar)</div>
+                  <div class="toggle-group" id="toggle-group-segment">
+                    <button type="button" class="toggle-btn active" data-val="all" onclick="toggleChartFilterOption('segment', 'all')">Todos</button>
+                    <button type="button" class="toggle-btn" data-val="sinteticos" onclick="toggleChartFilterOption('segment', 'sinteticos')">Sintéticos / Genéricos / Similares</button>
+                    <button type="button" class="toggle-btn" data-val="biologicos" onclick="toggleChartFilterOption('segment', 'biologicos')">Biológicos</button>
+                    <button type="button" class="toggle-btn" data-val="fitoterapicos" onclick="toggleChartFilterOption('segment', 'fitoterapicos')">Fitoterápicos</button>
+                    <button type="button" class="toggle-btn" data-val="dinamizados" onclick="toggleChartFilterOption('segment', 'dinamizados')">Dinamizados</button>
+                  </div>
+                </div>
+
+                <!-- Origem Fabril Toggle Options -->
+                <div class="chart-filter-group">
+                  <div class="chart-filter-group-title">Origem Fabril (Clique para alternar)</div>
+                  <div class="toggle-group" id="toggle-group-origem">
+                    <button type="button" class="toggle-btn active" data-val="all" onclick="toggleChartFilterOption('origem', 'all')">Todas as Origens</button>
+                    <button type="button" class="toggle-btn" data-val="nacional" onclick="toggleChartFilterOption('origem', 'nacional')">Apenas Nacional</button>
+                    <button type="button" class="toggle-btn" data-val="importado" onclick="toggleChartFilterOption('origem', 'importado')">Apenas Importados</button>
+                  </div>
+                </div>
+
+                <!-- Corte Top N Toggle Options -->
+                <div class="chart-filter-group">
+                  <div class="chart-filter-group-title">Corte de Entidades (Top N)</div>
+                  <div class="toggle-group" id="toggle-group-topn">
+                    <button type="button" class="toggle-btn" data-val="5" onclick="toggleChartFilterOption('topN', '5')">Top 5</button>
+                    <button type="button" class="toggle-btn active" data-val="10" onclick="toggleChartFilterOption('topN', '10')">Top 10</button>
+                    <button type="button" class="toggle-btn" data-val="20" onclick="toggleChartFilterOption('topN', '20')">Top 20</button>
+                    <button type="button" class="toggle-btn" data-val="all" onclick="toggleChartFilterOption('topN', 'all')">Todos</button>
+                  </div>
+                </div>
+
+                <!-- Action Footer -->
+                <div style="margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+                  <button type="button" class="btn-sm btn-secondary" onclick="resetChartFilters()" style="font-size: 11px;">Restaurar Padrão dos Gráficos</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Synced Selectors for Tests and Backward Compatibility -->
+            <select id="chart-filter-segment" class="custom-select-sm" style="display:none;" onchange="setChartFilter('segment', this.value)">
+              <option value="all">Todos os Segmentos</option>
+              <option value="sinteticos">Sintéticos / Genéricos / Similares</option>
+              <option value="biologicos">Biológicos</option>
+              <option value="fitoterapicos">Fitoterápicos</option>
+              <option value="dinamizados">Dinamizados</option>
+            </select>
+            <select id="chart-filter-origem" class="custom-select-sm" style="display:none;" onchange="setChartFilter('origem', this.value)">
+              <option value="all">Todas as Origens</option>
+              <option value="nacional">Apenas Nacional</option>
+              <option value="importado">Apenas Importados</option>
+            </select>
+            <select id="chart-filter-topn" class="custom-select-sm" style="display:none;" onchange="setChartFilter('topN', this.value)">
+              <option value="5">Top 5</option>
+              <option value="10">Top 10</option>
+              <option value="20">Top 20</option>
+              <option value="all">Todos os Itens</option>
+            </select>
+
+            <!-- Unmapped Toggle -->
+            <label class="switch-toggle-label" style="margin-left: 4px;">
               <input type="checkbox" id="toggle-unmapped">
               <span class="switch-slider"></span>
-              <span class="switch-text"><strong>Exibir registros não mapeados na ANVISA</strong> (em cinza nos gráficos)</span>
+              <span class="switch-text" style="font-size: 12px;"><strong>Não mapeados ANVISA</strong> (cinza)</span>
             </label>
           </div>
+
           <div class="overview-toolbar-right">
             <div class="coverage-pill">
               <span class="status-dot-green"></span>
-              <span>Cobertura ANVISA Direta: <strong id="kpi-cobertura-txt">8.533 / 26.941</strong> apresentações</span>
+              <span>Cobertura ANVISA Direta: <strong id="kpi-cobertura-txt">8.533 / 26.941</strong></span>
             </div>
           </div>
+        </div>
+
+        <!-- Unified Active Filters Bar -->
+        <div id="active-filters-bar" class="active-filters-bar">
+          <div class="active-filters-label">
+            <span class="filter-status-dot"></span>
+            <span>Filtros Ativos:</span>
+          </div>
+          <div id="active-filters-chips" class="active-filters-chips">
+            <span class="no-filter-text">Nenhum filtro aplicado. Clique em barras/fatias/nós dos gráficos ou utilize os seletores de cada seção.</span>
+          </div>
+          <button id="btn-clear-all-filters" class="btn-clear-all-filters" onclick="clearAllFilters()" style="display: none;">
+            Limpar Todos os Filtros
+          </button>
         </div>
 
         <!-- Charts Grid 1: Modelos Produtivos & Geografia -->
@@ -310,18 +401,24 @@
                   </span>
                 </div>
 
-                <!-- Controls: Densidade de Fluxo (Espessura) -->
+                <!-- Controls: Densidade de Fluxo (Espessura e Amplitude) -->
                 <div class="drilldown-tabs" style="margin: 0; padding: 2px;">
                   <button id="btn-sankey-top20" class="drill-tab btn-sankey-density" onclick="setSankeyLimit(20)" title="Filtra os 20 maiores fluxos, deixando as faixas substancialmente mais espessas">
                     Top 20 (Mais Espessos)
                   </button>
-                  <button id="btn-sankey-top30" class="drill-tab btn-sankey-density active" onclick="setSankeyLimit(30)" title="Visualização equilibrada com 30 maiores conexões">
-                    Top 30 (Recomendado)
+                  <button id="btn-sankey-top50" class="drill-tab btn-sankey-density" onclick="setSankeyLimit(50)" title="Visualização equilibrada com 50 conexões industriais">
+                    Top 50 (Equilibrado)
                   </button>
-                  <button id="btn-sankey-top45" class="drill-tab btn-sankey-density" onclick="setSankeyLimit(45)" title="Exibe 45 fluxos mapeados">
-                    Top 45 (Completo)
+                  <button id="btn-sankey-all" class="drill-tab btn-sankey-density active" onclick="setSankeyLimit('all')" title="Exibe todas as empresas e fábricas em formato vertical expandido ocupando 100% da superfície">
+                    Todas as Empresas (Expandido 100%)
                   </button>
                 </div>
+
+                <!-- Filter indicator / reset -->
+                <span id="sankey-filter-badge" style="display: none; align-items: center; gap: 6px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;" onclick="resetSankeyFilter()" title="Clique para remover o filtro e ver todas as empresas">
+                  <span id="sankey-filter-text"></span>
+                  <span style="font-weight: 800; color: #dc2626;">[x Limpar]</span>
+                </span>
 
                 <!-- Controls: Modo de Cor -->
                 <div class="drilldown-tabs" style="margin: 0; padding: 2px;">
@@ -346,12 +443,12 @@
             </div>
           </div>
 
-          <!-- Subtab 1: Sankey Canvas Wrapper -->
-          <div id="sankey-wrapper" style="position: relative; width: 100%; min-height: 660px; background: #ffffff; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; margin-top: 12px; box-shadow: var(--shadow-sm);">
-            <div id="sankey-container" style="width: 100%; height: 660px; min-height: 660px;"></div>
-            <div class="network-instructions-overlay">
-              Passe o cursor sobre os traços para inspecionar o volume de medicamentos • Clique em um laboratório ou fábrica para listar os produtos detalhados na tabela abaixo
-            </div>
+          <!-- Subtab 1: Sankey Canvas Wrapper (Comprido e Ocupando 100% da Superfície) -->
+          <div class="sankey-instruction-strip">
+            Passe o cursor sobre os traços para inspecionar volume • Passe sobre o nome de um laboratório ou fábrica para destacar conexões • Clique para isolar no gráfico ou detalhar na tabela abaixo
+          </div>
+          <div id="sankey-wrapper" style="position: relative; width: 100%; min-height: 950px; background: #ffffff; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; margin-top: 6px; box-shadow: var(--shadow-sm); transition: min-height 0.3s ease;">
+            <div id="sankey-container" style="width: 100%; height: 950px; min-height: 950px; transition: height 0.3s ease;"></div>
           </div>
 
           <!-- Subtab 2: Vis.Network Canvas Wrapper (Hidden behind tab) -->
@@ -487,13 +584,42 @@
           </div>
 
           <!-- Drilldown Search & Sort Filter Bar -->
-          <div class="drilldown-search-bar">
-            <div class="search-input-group" style="flex: 1;">
+          <div class="drilldown-search-bar" style="flex-wrap: wrap; gap: 10px;">
+            <div class="search-input-group" style="flex: 1; min-width: 250px;">
               <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
               <input type="text" id="drilldown-search-input" placeholder="Buscar nesta seleção por medicamento, substância, detentora, fábrica...">
             </div>
+
+            <!-- Table Filter: Tarja -->
+            <select id="table-filter-tarja" class="custom-select-sm" onchange="setTableFilter('tarja', this.value)">
+              <option value="">Todas as Tarjas Sanitárias</option>
+              <option value="Tarja Preta">Tarja Preta (Controle Especial)</option>
+              <option value="Tarja Vermelha">Tarja Vermelha</option>
+              <option value="Tarja Vermelha (Retenção de Receita)">Tarja Vermelha (Retenção)</option>
+              <option value="Isento de Prescrição (MIP)">Isento de Prescrição (MIP / Sem Tarja)</option>
+            </select>
+
+            <!-- Table Filter: Origem / Tipo -->
+            <select id="table-filter-tipo" class="custom-select-sm" onchange="setTableFilter('tipo', this.value)">
+              <option value="">Todas as Origens Fabris</option>
+              <option value="NACIONAL">Fábricas Nacionais</option>
+              <option value="INTERNACIONAL">Plantas Internacionais (Importado)</option>
+            </select>
+
             <div class="drilldown-pagination-info" id="drilldown-page-info">
               Mostrando registros
+            </div>
+
+            <!-- Table Filter Quick Toggles Strip -->
+            <div class="table-filter-toggle-strip" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; padding-top: 6px; border-top: 1px dashed var(--border-color);">
+              <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Alternar Tarja:</span>
+              <button type="button" class="toggle-btn toggle-btn-amber" id="toggle-table-tarja-preta" onclick="toggleTableFilterOption('tarja', 'Tarja Preta')">Tarja Preta</button>
+              <button type="button" class="toggle-btn toggle-btn-amber" id="toggle-table-tarja-vermelha" onclick="toggleTableFilterOption('tarja', 'Tarja Vermelha')">Tarja Vermelha</button>
+              <button type="button" class="toggle-btn toggle-btn-amber" id="toggle-table-tarja-mip" onclick="toggleTableFilterOption('tarja', 'Isento de Prescrição (MIP)')">MIP / Sem Tarja</button>
+              
+              <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-left: 10px;">Origem:</span>
+              <button type="button" class="toggle-btn toggle-btn-amber" id="toggle-table-tipo-nac" onclick="toggleTableFilterOption('tipo', 'NACIONAL')">Nacional</button>
+              <button type="button" class="toggle-btn toggle-btn-amber" id="toggle-table-tipo-imp" onclick="toggleTableFilterOption('tipo', 'INTERNACIONAL')">Importado</button>
             </div>
           </div>
 

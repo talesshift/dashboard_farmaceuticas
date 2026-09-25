@@ -1103,6 +1103,305 @@ body {
   transform: translateY(-1px);
 }
 
+/* ========================================================================= */
+/* UNIFIED ACTIVE FILTERS BAR & BADGES */
+/* ========================================================================= */
+.active-filters-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 18px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-top: 14px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.active-filters-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.filter-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  display: inline-block;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.active-filters-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.no-filter-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  animation: fadeInChip 0.2s ease;
+}
+
+@keyframes fadeInChip {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.filter-chip-scope {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.chip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 2px;
+  transition: all 0.15s ease;
+}
+
+.chip-close:hover {
+  background: rgba(0, 0, 0, 0.2);
+  transform: scale(1.15);
+}
+
+/* Chip Categories */
+.chip-global {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+.chip-chart {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+}
+
+.chip-table {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.btn-clear-all-filters {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-clear-all-filters:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+/* ========================================================================= */
+/* SANKEY INSTRUCTION STRIP & HOVER STYLES */
+/* ========================================================================= */
+.sankey-instruction-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 16px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.sankey-node-group {
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.sankey-ribbon {
+  transition: fill-opacity 0.2s ease, stroke-opacity 0.2s ease, stroke-width 0.2s ease;
+}
+
+.custom-select-sm {
+  height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.custom-select-sm:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Independent Chart Filter Menu & Popover */
+.chart-filter-menu-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-chart-filters-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.btn-chart-filters-menu:hover, .btn-chart-filters-menu.open {
+  background: #f0fdf4;
+  border-color: #059669;
+  color: #047857;
+}
+
+.chart-filters-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 1050;
+  width: 440px;
+  max-width: 90vw;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 6px 12px -4px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  display: none;
+}
+
+.chart-filters-popover.open {
+  display: block;
+}
+
+.chart-filter-group {
+  margin-bottom: 12px;
+}
+
+.chart-filter-group:last-child {
+  margin-bottom: 0;
+}
+
+.chart-filter-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.toggle-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.toggle-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.toggle-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.toggle-btn.active {
+  background: #059669;
+  border-color: #047857;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.25);
+}
+
+.toggle-btn-amber.active {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.25);
+}
+
+.table-just-filtered {
+  animation: tableFilterHighlight 1.5s ease-out;
+}
+
+@keyframes tableFilterHighlight {
+  0% { box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.2); }
+  100% { box-shadow: none; }
+}
+
+
+
 
 
 /* ========================================================================== */

@@ -164,25 +164,64 @@ window.fetch = async function(url, options) {
   const urlStr = url.toString();
   
   if (isStaticMode || !urlStr.startsWith('http://127.0.0.1:5000')) {
-    if (urlStr.startsWith('/api/stats') || urlStr.startsWith('api/stats')) {
+    if (urlStr.includes('/api/stats') || urlStr.includes('api/stats')) {
       if (!staticDataCache.stats) {
         staticDataCache.stats = await fetchAndDecryptJson('data/stats.json.enc');
       }
       return new Response(JSON.stringify(staticDataCache.stats), { headers: { 'Content-Type': 'application/json' } });
     }
-    if (urlStr.startsWith('/api/charts') || urlStr.startsWith('api/charts')) {
+    if (urlStr.includes('/api/charts') || urlStr.includes('api/charts')) {
       if (!staticDataCache.charts) {
         staticDataCache.charts = await fetchAndDecryptJson('data/charts.json.enc');
       }
-      return new Response(JSON.stringify(staticDataCache.charts), { headers: { 'Content-Type': 'application/json' } });
+      const parsedUrl = new URL(urlStr, window.location.href);
+      const incUnmapped = (parsedUrl.searchParams.get('include_unmapped') || 'false').toLowerCase() === 'true';
+      const origem = (parsedUrl.searchParams.get('origem') || 'all').toLowerCase();
+      const topN = (parsedUrl.searchParams.get('top_n') || '10').toLowerCase();
+      const maxN = topN === 'all' ? 999 : parseInt(topN) || 10;
+
+      const base = JSON.parse(JSON.stringify(staticDataCache.charts));
+
+      if (!incUnmapped) {
+        base.paises = (base.paises || []).filter(p => !p.is_unmapped);
+        base.modelos = (base.modelos || []).filter(m => !m.is_unmapped);
+      }
+
+      if (origem === 'nacional') {
+        base.paises = (base.paises || []).filter(p => p.pais === 'BRASIL');
+      } else if (origem === 'importado') {
+        base.paises = (base.paises || []).filter(p => p.pais !== 'BRASIL');
+      }
+
+      ['paises', 'formas', 'embalagens', 'top_labs', 'top_ufs', 'classes_terapeuticas', 'tarjas', 'moleculas'].forEach(k => {
+        if (base[k] && Array.isArray(base[k])) {
+          base[k] = base[k].slice(0, maxN);
+        }
+      });
+
+      return new Response(JSON.stringify(base), { headers: { 'Content-Type': 'application/json' } });
     }
-    if (urlStr.startsWith('/api/sankey') || urlStr.startsWith('api/sankey')) {
+    if (urlStr.includes('/api/sankey') || urlStr.includes('api/sankey')) {
       if (!staticDataCache.sankey) {
         staticDataCache.sankey = await fetchAndDecryptJson('data/sankey.json.enc');
       }
-      return new Response(JSON.stringify(staticDataCache.sankey), { headers: { 'Content-Type': 'application/json' } });
+      const rawRows = Array.isArray(staticDataCache.sankey) ? staticDataCache.sankey : (staticDataCache.sankey.rows || []);
+      let limitParam = 'all';
+      try {
+        const parsedUrl = new URL(urlStr, window.location.origin || 'http://localhost');
+        limitParam = (parsedUrl.searchParams.get('limit') || 'all').toLowerCase();
+      } catch (e) {
+        if (urlStr.includes('limit=20')) limitParam = '20';
+        else if (urlStr.includes('limit=50')) limitParam = '50';
+      }
+      if (limitParam === 'all' || limitParam === 'todas') {
+        return new Response(JSON.stringify({ rows: rawRows }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      const limNum = parseInt(limitParam) || 50;
+      const slicedRows = rawRows.slice(0, limNum);
+      return new Response(JSON.stringify({ rows: slicedRows }), { headers: { 'Content-Type': 'application/json' } });
     }
-    if (urlStr.startsWith('/api/network') || urlStr.startsWith('api/network')) {
+    if (urlStr.includes('/api/network') || urlStr.includes('api/network')) {
       if (!staticDataCache.network) {
         staticDataCache.network = await fetchAndDecryptJson('data/network.json.enc');
       }
@@ -350,40 +389,78 @@ window.fetch = async function(url, options) {
       const fVal = (parsedUrl.searchParams.get('filter_val') || '').trim();
       const entity = (parsedUrl.searchParams.get('entity_type') || 'medicamentos').toLowerCase().trim();
       const q = (parsedUrl.searchParams.get('q') || '').toLowerCase().trim();
+      const pTarja = (parsedUrl.searchParams.get('tarja') || '').toUpperCase().trim();
+      const pTipo = (parsedUrl.searchParams.get('tipo') || '').toUpperCase().trim();
       const page = parseInt(parsedUrl.searchParams.get('page') || '1');
       const limit = parseInt(parsedUrl.searchParams.get('limit') || '20');
 
       let filtered = catList.filter(m => {
+        // Table filters
+        if (pTipo && (m.tipo || '').toUpperCase() !== pTipo) return false;
+        if (pTarja) {
+          const mTarja = (m.tarja || '').toUpperCase();
+          if (pTarja.includes('PRETA') && !mTarja.includes('PRETA')) return false;
+          if ((pTarja.includes('RETEN') || pTarja.includes('RESTRI')) && !(mTarja.includes('RETEN') || mTarja.includes('RESTRI'))) return false;
+          if (pTarja.includes('MIP') || pTarja.includes('ISENT')) {
+            if (!(mTarja.includes('ISENT') || mTarja.includes('MIP') || mTarja.includes('SEM TARJA') || mTarja.includes('(*)'))) return false;
+          }
+          if (pTarja === 'TARJA VERMELHA') {
+            if (!(mTarja.includes('VERMELHA') && !mTarja.includes('RESTRI') && !mTarja.includes('RETEN'))) return false;
+          }
+        }
+
+        // Global Chart Click filters
         if (fType === 'pais') {
           if (fVal.toUpperCase().includes('NAO MAP') || fVal.toUpperCase().includes('NÃO MAP')) {
             if (m.tipo !== null && m.pais !== null) return false;
           } else {
             if ((m.pais || '').toUpperCase() !== fVal.toUpperCase()) return false;
           }
+        } else if (fType === 'modelo') {
+          const vUp = fVal.toUpperCase();
+          if (vUp.includes('IMPORT') && m.tipo !== 'INTERNACIONAL') return false;
+          if ((vUp.includes('TERCEIRIZ') || vUp.includes('CMO')) && (m.tipo !== 'NACIONAL' || m.detentora === m.fabrica)) return false;
+          if ((vUp.includes('PROPRIA') || vUp.includes('PRÓPRIA')) && (m.tipo !== 'NACIONAL' || m.detentora !== m.fabrica)) return false;
         } else if (fType === 'tipo_fabricante') {
           if ((m.tipo || '').toUpperCase() !== fVal.toUpperCase()) return false;
         } else if (fType === 'tarja') {
           const mTarja = (m.tarja || '').toUpperCase();
           const target = fVal.toUpperCase();
           if (target.includes('PRETA') && !mTarja.includes('PRETA')) return false;
-          if (target.includes('RETEN') && !(mTarja.includes('RETEN') || mTarja.includes('RESTRI'))) return false;
+          if ((target.includes('RETEN') || target.includes('RESTRI')) && !(mTarja.includes('RETEN') || mTarja.includes('RESTRI'))) return false;
           if (target.includes('MIP') || target.includes('ISENT')) {
             if (!(mTarja.includes('ISENT') || mTarja.includes('MIP') || mTarja.includes('SEM TARJA') || mTarja.includes('(*)'))) return false;
           }
           if (target === 'TARJA VERMELHA') {
             if (!(mTarja.includes('VERMELHA') && !mTarja.includes('RESTRI') && !mTarja.includes('RETEN'))) return false;
           }
-        } else if (fType === 'forma_farmaceutica') {
-          if ((m.forma || '').toUpperCase() !== fVal.toUpperCase()) return false;
+        } else if (fType === 'forma' || fType === 'forma_farmaceutica') {
+          if (!(m.forma || '').toUpperCase().includes(fVal.toUpperCase())) return false;
+        } else if (fType === 'embalagem') {
+          if (!(m.embalagem || '').toUpperCase().includes(fVal.toUpperCase())) return false;
         } else if (fType === 'uf') {
           if ((m.uf || '').toUpperCase() !== fVal.toUpperCase()) return false;
-        } else if (fType === 'detentora') {
-          if ((m.detentora || '').toUpperCase() !== fVal.toUpperCase()) return false;
+        } else if (fType === 'detentora' || fType === 'empresa') {
+          if (!(m.detentora || '').toUpperCase().includes(fVal.toUpperCase())) return false;
         } else if (fType === 'fabrica') {
-          if ((m.fabrica || '').toUpperCase() !== fVal.toUpperCase()) return false;
+          if (!(m.fabrica || '').toUpperCase().includes(fVal.toUpperCase())) return false;
+        } else if (fType === 'substancia' || fType === 'molecula') {
+          if (!(m.substancia || '').toUpperCase().includes(fVal.toUpperCase())) return false;
+        } else if (fType === 'classe') {
+          if (!(m.categoria || '').toUpperCase().includes(fVal.toUpperCase())) return false;
         }
         return true;
       });
+
+      // Compute counts across all filtered items before search/pagination
+      const cntMeds = new Set(filtered.map(m => m.registro_13 || m.produto)).size;
+      const cntFabs = new Set(filtered.map(m => m.fabrica).filter(Boolean)).size;
+      const cntEmps = new Set(filtered.map(m => m.detentora).filter(Boolean)).size;
+      const counts = {
+        medicamentos: cntMeds,
+        fabricas: cntFabs,
+        empresas: cntEmps
+      };
 
       if (entity === 'empresas') {
         const empMap = {};
@@ -419,6 +496,7 @@ window.fetch = async function(url, options) {
           filter_type: fType,
           filter_val: fVal,
           entity_type: entity,
+          counts,
           total,
           page,
           pages,
@@ -467,6 +545,7 @@ window.fetch = async function(url, options) {
           filter_type: fType,
           filter_val: fVal,
           entity_type: entity,
+          counts,
           total,
           page,
           pages,
@@ -487,6 +566,7 @@ window.fetch = async function(url, options) {
         filter_type: fType,
         filter_val: fVal,
         entity_type: entity,
+        counts,
         total,
         page,
         pages,
@@ -546,33 +626,63 @@ window.fetch = async function(url, options) {
       return new Response(JSON.stringify(found), { headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Static Medicamento Modal
+    // Static Medicamento Modal (Raio-X 360°)
     if (urlStr.includes('/api/medicamento/') || urlStr.includes('api/medicamento/')) {
       const catList = await getStaticCatalogo();
-      const reg = urlStr.split('/medicamento/')[1] || '';
-      const med = catList.find(m => (m.registro_13 || '').includes(reg)) || {};
+      const reg = decodeURIComponent(urlStr.split('/medicamento/')[1] || '').trim();
+      const med = catList.find(m => (m.registro_13 || '').includes(reg)) || catList.find(m => (m.produto || '').toLowerCase().includes(reg.toLowerCase())) || {};
+
+      let empSocietario = null;
+      if (!staticDataCache.societario) {
+        staticDataCache.societario = await fetchAndDecryptJson('data/societario.json.enc');
+      }
+      if (staticDataCache.societario && med.cnpj_detentora) {
+        const cLimpo = med.cnpj_detentora.replace(/[^0-9]/g, '');
+        empSocietario = staticDataCache.societario.find(e => (e.cnpj_limpo || '').includes(cLimpo));
+      }
+      if (!empSocietario && staticDataCache.societario && med.detentora) {
+        const dNorm = med.detentora.toUpperCase();
+        empSocietario = staticDataCache.societario.find(e => (e.razao_social || '').toUpperCase().includes(dNorm) || dNorm.includes((e.razao_social || '').toUpperCase()));
+      }
+
       return new Response(JSON.stringify({
-        medicamento: {
+        status: "success",
+        dados_cmed_anvisa: {
+          PRODUTO: med.produto || 'Medicamento Registrado',
           produto_nome: med.produto || 'Medicamento Registrado',
+          SUBSTÂNCIA: med.substancia || '-',
           substancia: med.substancia || '-',
-          numero_registro_13: med.registro_13 || reg,
-          categoria_regulatoria: med.categoria || 'Sintético / ANVISA',
-          forma_farmaceutica: med.forma || '-',
-          embalagem_primaria: med.embalagem || '-',
-          tarja: med.tarja || '-',
+          REGISTRO: med.registro_13 || reg,
+          registro_13: med.registro_13 || reg,
           pf_18: med.pf_18 || 0,
+          pmvg_18: med.pmvg_18 || 0,
+          codigo_ggrem: med.registro_13 || '-',
+          ean_1: '-',
+          classe_terapeutica: med.categoria || 'Sintético / ANVISA',
+          categoria_regulatoria: med.categoria || 'Sintético / ANVISA',
+          emp_razao: med.detentora || (empSocietario ? empSocietario.razao_social : '-'),
+          laboratorio_nome: med.detentora || (empSocietario ? empSocietario.razao_social : '-'),
+          cnpj_limpo: med.cnpj_detentora || (empSocietario ? empSocietario.cnpj_limpo : '-'),
+          socios: empSocietario ? (empSocietario.socios_donos_administradores || 'Consulte o QSA na aba de Laboratórios') : 'Consulte a aba de Laboratórios',
+          capital_social: empSocietario ? empSocietario.capital_social : 0,
+          telefone: empSocietario ? empSocietario.telefone : '-',
+          email: empSocietario ? empSocietario.email : '-',
+          formas_farmaceuticas: med.forma || '-',
+          vias_administracao: 'Oral / Injetável / Tópica conforme bula',
+          embalagem_primaria_tipo: med.embalagem || 'Homologada ANVISA',
+          embalagem_primaria_detalhes: 'Embalagem Homologada pela ANVISA',
+          embalagem_secundaria_tipo: '-',
           url_consulta_anvisa: med.url_anvisa || ''
-        },
-        detentora: {
-          razao_social: med.detentora || '-',
-          cnpj_formatado: med.cnpj_detentora || '-'
         },
         fabricantes: [
           {
             razao_social_fabricante: med.fabrica || 'Fabricante Homologado',
             tipo_fabricante: med.tipo || 'NACIONAL',
             pais_fabricante: med.pais || 'BRASIL',
-            uf_fabricante: med.uf || '-'
+            uf_fabricante: med.uf || '-',
+            cidade_fabricante: '-',
+            etapa_fabricacao: 'Fabricação Completa Homologada',
+            cnpj_fabricante_limpo: med.cnpj_fabrica || ''
           }
         ]
       }), { headers: { 'Content-Type': 'application/json' } });
@@ -617,13 +727,22 @@ let empresasFilters = {
   sortOrder: 'desc'
 };
 
-// Global State for Tab 1 (Overview & Drilldown)
+// Global State for Tab 1 (Overview, Chart Filters & Drilldown)
 let includeUnmapped = false;
+let chartFilters = {
+  segment: 'all',
+  origem: 'all',
+  topN: 10,
+  includeUnmapped: false
+};
+
 let drilldownState = {
   filterType: '',
   filterVal: '',
   entityType: 'medicamentos',
   q: '',
+  tarja: '',
+  tipo: '',
   sortBy: 'produto',
   sortOrder: 'asc',
   page: 1,
@@ -648,7 +767,7 @@ const setElemText = (id, text) => {
 };
 
 // DOM Content Loaded
-window.startDashboardApp = function() {
+document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   loadStats();
   loadCharts();
@@ -662,7 +781,8 @@ window.startDashboardApp = function() {
   initSqlStudio();
   initOverviewToolbar();
   initNetworkToggles();
-};
+  renderActiveFiltersBar();
+});
 
 // Navigation / Tabs
 function initNavigation() {
@@ -701,19 +821,28 @@ async function loadStats() {
     const res = await fetch('/api/stats');
     const data = await res.json();
 
-    setElemText('kpi-total-cmed', formatNumber(data.total_cmed_apresentacoes));
-    setElemText('kpi-total-empresas', formatNumber(data.total_empresas_detentoras));
-    setElemText('kpi-total-fabricantes', formatNumber(data.total_fabricantes_unicos));
-    setElemText('kpi-total-paises', `${data.total_paises_fabricacao} Países Mapeados`);
-    setElemText('kpi-capital-total', formatBRL(data.capital_social_acumulado));
+    const totalCmed = data.total_cmed_apresentacoes ?? data.total_cmed ?? 0;
+    const totalEmpresas = data.total_empresas_detentoras ?? data.total_empresas ?? 0;
+    const totalFabricantes = data.total_fabricantes_unicos ?? data.total_fabricantes ?? 0;
+    const totalPaises = data.total_paises_fabricacao ?? data.total_paises ?? 0;
+    const capitalTotal = data.capital_social_acumulado ?? data.total_capital_social ?? data.total_capital ?? 0;
     
     // Vínculos Importação & Terceirização
-    const totalVinculos = data.vinculos_importados + data.vinculos_nacionais;
-    const percImport = totalVinculos > 0 ? ((data.vinculos_importados / totalVinculos) * 100).toFixed(1) : 0;
-    setElemText('kpi-perc-import', `${percImport}% dos Vínculos`);
+    const vincImport = data.vinculos_importados ?? data.total_importados ?? 0;
+    const vincNac = data.vinculos_nacionais ?? data.total_nacionais ?? 0;
+    const totalVinculos = vincImport + vincNac;
+    const percImport = totalVinculos > 0 ? ((vincImport / totalVinculos) * 100).toFixed(1) : 0;
 
     // Cobertura Regulatória Direta
-    setElemText('kpi-cobertura-txt', `${formatNumber(data.total_mapeados_cmed)} / ${formatNumber(data.total_cmed_apresentacoes)}`);
+    const totalMapeados = data.total_mapeados_cmed ?? data.cobertura_absoluta ?? 0;
+
+    setElemText('kpi-total-cmed', formatNumber(totalCmed));
+    setElemText('kpi-total-empresas', formatNumber(totalEmpresas));
+    setElemText('kpi-total-fabricantes', formatNumber(totalFabricantes));
+    setElemText('kpi-total-paises', `${totalPaises} Países Mapeados`);
+    setElemText('kpi-capital-total', formatBRL(capitalTotal));
+    setElemText('kpi-perc-import', `${percImport}% dos Vínculos`);
+    setElemText('kpi-cobertura-txt', `${formatNumber(totalMapeados)} / ${formatNumber(totalCmed)}`);
 
     // KPIs Especiais
     if (data.total_fitoterapicos) setElemText('kpi-esp-fito', formatNumber(data.total_fitoterapicos));
@@ -747,8 +876,15 @@ function initOverviewToolbar() {
 // 2. Load Charts
 async function loadCharts() {
   try {
-    const res = await fetch(`/api/charts?include_unmapped=${includeUnmapped}`);
+    const params = new URLSearchParams({
+      include_unmapped: chartFilters.includeUnmapped,
+      segment: chartFilters.segment,
+      origem: chartFilters.origem,
+      top_n: chartFilters.topN
+    });
+    const res = await fetch(`/api/charts?${params}`);
     const data = await res.json();
+    const topLimit = chartFilters.topN === 'all' ? 999 : (parseInt(chartFilters.topN) || 10);
 
     // Palette Colors
     const palette = ['#10b981', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -1356,30 +1492,28 @@ function resetNetworkView() {
 }
 
 // -------------------------------------------------------------
-// Interactive Sankey Diagram (Laboratórios Detentores -> Fábricas)
 // -------------------------------------------------------------
-let sankeyChart = null;
+// Interactive SVG Sankey Diagram (Laboratórios Detentores -> Fábricas)
+// 100% Surface Occupancy on Both Sides, Dynamic Height, Full Interactivity
+// -------------------------------------------------------------
 let sankeyData = null;
-let sankeyLimit = 30;
+let sankeyLimit = 'all';
 let sankeyColorMode = 'gradient';
 let sankeyOpacity = 0.75;
+let sankeyFilter = null;
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function initGoogleChartsAndSankey() {
-  if (typeof google !== 'undefined' && google.charts) {
-    google.charts.load('current', { packages: ['sankey'] });
-    google.charts.setOnLoadCallback(() => {
-      initSankeyGraph();
-    });
-  } else {
-    window.addEventListener('load', () => {
-      if (typeof google !== 'undefined' && google.charts) {
-        google.charts.load('current', { packages: ['sankey'] });
-        google.charts.setOnLoadCallback(() => {
-          initSankeyGraph();
-        });
-      }
-    });
-  }
+  initSankeyGraph();
 }
 
 async function initSankeyGraph(limit = sankeyLimit) {
@@ -1394,83 +1528,415 @@ async function initSankeyGraph(limit = sankeyLimit) {
     renderSankeyChart();
   } catch (err) {
     console.error('Erro ao carregar dados do Sankey:', err);
-    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-size:13px;">Falha ao carregar fluxos industriais. Verifique a conexão com o servidor.</div>';
+    container.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;gap:8px;">
+      <span>Falha ao carregar fluxos industriais.</span>
+      <span style="color:#64748b;font-size:11px;">${escapeHtml(err.message || String(err))}</span>
+      <button class="drill-tab" onclick="initSankeyGraph()" style="margin-top:4px;">Tentar Novamente</button>
+    </div>`;
   }
+}
+
+function resetSankeyFilter() {
+  sankeyFilter = null;
+  const badge = document.getElementById('sankey-filter-badge');
+  if (badge) badge.style.display = 'none';
+  renderSankeyChart();
+}
+
+function handleSankeyCompanyClick(company) {
+  if (sankeyFilter && sankeyFilter.toLowerCase() === company.toLowerCase()) {
+    resetSankeyFilter();
+  } else {
+    sankeyFilter = company;
+    renderSankeyChart();
+    triggerDrilldown('empresa', company);
+  }
+}
+
+function handleSankeyFactoryClick(factory) {
+  triggerDrilldown('fabrica', factory);
+}
+
+function handleSankeyRibbonClick(company) {
+  handleSankeyCompanyClick(company);
+}
+
+function highlightSankeyNodeConnections(name, type) {
+  const norm = name.toLowerCase().trim();
+  const ribbons = document.querySelectorAll('#sankey-svg .sankey-ribbon');
+  const connectedPartners = new Set();
+  connectedPartners.add(norm);
+
+  // 1. Ribbons matching & collect connected partner node names
+  ribbons.forEach(r => {
+    const s = (r.getAttribute('data-source') || '').toLowerCase().trim();
+    const t = (r.getAttribute('data-target') || '').toLowerCase().trim();
+    const matches = type === 'source' ? (s === norm) : (t === norm || t.includes(norm));
+    if (matches) {
+      r.setAttribute('fill-opacity', '0.95');
+      r.setAttribute('stroke-width', '1.8');
+      r.setAttribute('stroke-opacity', '0.9');
+      if (type === 'source') {
+        connectedPartners.add(t);
+      } else {
+        connectedPartners.add(s);
+      }
+    } else {
+      r.setAttribute('fill-opacity', '0.04');
+      r.setAttribute('stroke-opacity', '0.05');
+    }
+  });
+
+  // 2. Nodes & Labels highlighting: dim unselected nodes to semi-transparent (15%)
+  const nodeGroups = document.querySelectorAll('#sankey-svg .sankey-node-group');
+  nodeGroups.forEach(g => {
+    const gNode = (g.getAttribute('data-node') || '').toLowerCase().trim();
+    let isMatch = (gNode === norm) || connectedPartners.has(gNode);
+    if (!isMatch) {
+      for (const p of connectedPartners) {
+        if (p && (gNode.includes(p) || p.includes(gNode))) {
+          isMatch = true;
+          break;
+        }
+      }
+    }
+
+    if (isMatch) {
+      g.style.opacity = '1';
+      g.style.filter = 'drop-shadow(0 2px 5px rgba(0, 0, 0, 0.2))';
+    } else {
+      g.style.opacity = '0.15';
+      g.style.filter = 'none';
+    }
+  });
+}
+
+function resetSankeyHighlights() {
+  const ribbons = document.querySelectorAll('#sankey-svg .sankey-ribbon');
+  ribbons.forEach(r => {
+    r.setAttribute('fill-opacity', sankeyOpacity.toString());
+    r.setAttribute('stroke-width', '0.5');
+    r.setAttribute('stroke-opacity', '0.3');
+  });
+
+  const nodeGroups = document.querySelectorAll('#sankey-svg .sankey-node-group');
+  nodeGroups.forEach(g => {
+    g.style.opacity = '1';
+    g.style.filter = 'none';
+  });
+}
+
+function handleSankeyRibbonHover(event, source, target, val, pct) {
+  const tooltip = document.getElementById('sankey-tooltip');
+  if (!tooltip) return;
+
+  const formattedVal = Number(val).toLocaleString('pt-BR');
+  tooltip.innerHTML = `
+    <div style="font-weight: 700; color: #60a5fa; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Conexão Industrial</div>
+    <div style="font-weight: 600; color: #ffffff; margin-bottom: 2px;">${escapeHtml(source)}</div>
+    <div style="color: #94a3b8; font-size: 11px; margin-bottom: 6px;">→ Produzido em: <strong style="color: #e2e8f0;">${escapeHtml(target)}</strong></div>
+    <div style="display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #334155; padding-top: 6px; font-size: 11px;">
+      <span>Volume Mapeado:</span>
+      <span style="font-weight: 700; color: #34d399;">${formattedVal} medicamentos</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: #94a3b8;">
+      <span>Participação:</span>
+      <span style="font-weight: 600; color: #facc15;">${pct}% da produção</span>
+    </div>
+  `;
+  tooltip.style.display = 'block';
+  handleSankeyTooltipMove(event);
+}
+
+function handleSankeyTooltipMove(event) {
+  const tooltip = document.getElementById('sankey-tooltip');
+  const container = document.getElementById('sankey-container');
+  if (!tooltip || !container) return;
+
+  const rect = container.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+
+  let left = mouseX + 16;
+  let top = mouseY - 20;
+
+  if (left + 300 > container.clientWidth) {
+    left = mouseX - 310;
+  }
+  tooltip.style.left = `${Math.max(10, left)}px`;
+  tooltip.style.top = `${Math.max(10, top)}px`;
+}
+
+function handleSankeyRibbonLeave() {
+  const tooltip = document.getElementById('sankey-tooltip');
+  if (tooltip) tooltip.style.display = 'none';
+  resetSankeyHighlights();
 }
 
 function renderSankeyChart() {
   const container = document.getElementById('sankey-container');
-  if (!container || !sankeyData || !sankeyData.rows || !sankeyData.rows.length) return;
-  if (typeof google === 'undefined' || !google.visualization || !google.visualization.Sankey) return;
+  const wrapper = document.getElementById('sankey-wrapper');
+  if (!container) return;
 
-  const dataTable = new google.visualization.DataTable();
-  dataTable.addColumn('string', 'Laboratório Detentor');
-  dataTable.addColumn('string', 'Planta Fabril Real');
-  dataTable.addColumn('number', 'Medicamentos Mapeados');
+  const allRows = Array.isArray(sankeyData) ? sankeyData : (sankeyData && sankeyData.rows ? sankeyData.rows : []);
+  if (!allRows || !allRows.length) return;
 
-  dataTable.addRows(sankeyData.rows);
+  let activeRows = allRows;
+  if (sankeyFilter) {
+    const normF = sankeyFilter.toLowerCase().trim();
+    activeRows = allRows.filter(r => (r[0] || '').toLowerCase().trim() === normF || (r[0] || '').toLowerCase().includes(normF));
+    if (!activeRows.length) {
+      activeRows = allRows.filter(r => (r[1] || '').toLowerCase().includes(normF));
+    }
+    const badge = document.getElementById('sankey-filter-badge');
+    const badgeText = document.getElementById('sankey-filter-text');
+    if (badge && badgeText) {
+      badgeText.innerText = `Filtrando: ${sankeyFilter}`;
+      badge.style.display = 'inline-flex';
+    }
+  } else {
+    const badge = document.getElementById('sankey-filter-badge');
+    if (badge) badge.style.display = 'none';
+  }
 
-  // Paleta executiva vibrante e com alto contraste
+  if (!activeRows.length) {
+    activeRows = allRows;
+  }
+
+  // Aggregate sources and targets
+  const sourceTotals = {};
+  const targetTotals = {};
+  activeRows.forEach(([s, t, v]) => {
+    sourceTotals[s] = (sourceTotals[s] || 0) + v;
+    targetTotals[t] = (targetTotals[t] || 0) + v;
+  });
+
+  const sourceKeys = Object.keys(sourceTotals).sort((a, b) => sourceTotals[b] - sourceTotals[a]);
+  const targetKeys = Object.keys(targetTotals).sort((a, b) => targetTotals[b] - targetTotals[a]);
+
+  const numSources = sourceKeys.length;
+  const numTargets = targetKeys.length;
+  const maxNodes = Math.max(numSources, numTargets, 1);
+
+  // Dynamic Height: expand vertically with full surface usage and safe minimum node allocations
+  const minBarH = 4;
+  let dynamicHeight = 1100;
+  if (sankeyFilter) {
+    dynamicHeight = Math.max(700, Math.min(1800, maxNodes * 60));
+  } else if (sankeyLimit === 'all') {
+    dynamicHeight = Math.max(2600, Math.min(5200, maxNodes * 42));
+  } else if (sankeyLimit === 50) {
+    dynamicHeight = Math.max(1600, Math.min(2800, maxNodes * 38));
+  } else {
+    dynamicHeight = Math.max(1100, Math.min(1800, maxNodes * 45));
+  }
+
+  const topPad = 35;
+  const botPad = 80;
+
+  // Ensure dynamicHeight has sufficient vertical space for all nodes and gaps without negative heights
+  const reqS = topPad + botPad + numSources * minBarH + (numSources - 1) * 3;
+  const reqT = topPad + botPad + numTargets * minBarH + (numTargets - 1) * 3;
+  dynamicHeight = Math.max(dynamicHeight, reqS + 120, reqT + 120);
+
+  const totalWidth = Math.max(1050, container.clientWidth || 1100);
+  const usableH = dynamicHeight - topPad - botPad;
+  const totalHeightWithMargin = dynamicHeight + 50;
+
+  container.style.height = `${totalHeightWithMargin}px`;
+  if (wrapper) wrapper.style.minHeight = `${totalHeightWithMargin}px`;
+  const totalVolume = Object.values(sourceTotals).reduce((a, b) => a + b, 0) || 1;
+
+  // 100% Vertical Surface Occupancy for Left Side (Laboratórios Detentores)
+  const gapS = numSources > 1 ? Math.min(16, Math.max(3, Math.floor((usableH * 0.15) / (numSources - 1)))) : 0;
+  const availS = usableH - ((numSources - 1) * gapS);
+  const extraS = Math.max(0, availS - (numSources * minBarH));
+
+  let curYS = topPad;
+  const sourceNodes = {};
   const vibrantPalette = [
     '#1d4ed8', '#059669', '#7c3aed', '#d97706', '#0891b2',
     '#dc2626', '#4f46e5', '#0d9488', '#ea580c', '#0284c7',
     '#16a34a', '#9333ea', '#be123c', '#0f766e', '#b45309'
   ];
 
-  const options = {
-    height: 660,
-    sankey: {
-      node: {
-        label: {
-          fontName: 'Inter',
-          fontSize: 11,
-          color: '#0f172a',
-          bold: true
-        },
-        labelPadding: 12,
-        nodePadding: 24,
-        width: 20,
-        colors: vibrantPalette
-      },
-      link: {
-        colorMode: sankeyColorMode, // 'gradient' or 'source'
-        colors: vibrantPalette,
-        color: {
-          fillOpacity: sankeyOpacity, // 0.75 ou 0.92 (traços espessos, ricos e perfeitamente visíveis)
-          stroke: '#475569',          // borda nítida de delimitação
-          strokeWidth: 0.8
-        }
-      }
-    }
-  };
-
-  sankeyChart = new google.visualization.Sankey(container);
-
-  google.visualization.events.addListener(sankeyChart, 'select', () => {
-    const sel = sankeyChart.getSelection();
-    if (!sel || !sel.length) return;
-    const item = sel[0];
-    if (item.name) {
-      const rawName = item.name;
-      if (rawName.includes(' [Fab]')) {
-        const fab = rawName.replace(' [Fab]', '').trim();
-        triggerDrilldown('fabrica', fab);
-      } else {
-        triggerDrilldown('empresa', rawName.trim());
-      }
-    } else if (item.row !== null && item.row !== undefined) {
-      const emp = dataTable.getValue(item.row, 0);
-      triggerDrilldown('empresa', emp);
-    }
+  sourceKeys.forEach((key, idx) => {
+    const barH = minBarH + ((sourceTotals[key] / totalVolume) * extraS);
+    const color = vibrantPalette[idx % vibrantPalette.length];
+    sourceNodes[key] = {
+      name: key,
+      val: sourceTotals[key],
+      y0: curYS,
+      y1: curYS + barH,
+      h: barH,
+      color: color,
+      currentSliceY: curYS
+    };
+    curYS += barH + gapS;
   });
 
-  sankeyChart.draw(dataTable, options);
+  // 100% Vertical Surface Occupancy for Right Side (Plantas Fabris)
+  const gapT = numTargets > 1 ? Math.min(14, Math.max(2, Math.floor((usableH * 0.15) / (numTargets - 1)))) : 0;
+  const availT = usableH - ((numTargets - 1) * gapT);
+  const extraT = Math.max(0, availT - (numTargets * minBarH));
+
+  let curYT = topPad;
+  const targetNodes = {};
+  targetKeys.forEach((key, idx) => {
+    const barH = minBarH + ((targetTotals[key] / totalVolume) * extraT);
+    const color = vibrantPalette[(idx + 4) % vibrantPalette.length];
+    targetNodes[key] = {
+      name: key,
+      val: targetTotals[key],
+      y0: curYT,
+      y1: curYT + barH,
+      h: barH,
+      color: color,
+      currentSliceY: curYT
+    };
+    curYT += barH + gapT;
+  });
+
+  // Geometry: Left bars at x=260, Right bars at x=totalWidth-280
+  const leftBarX = 260;
+  const barW = 16;
+  const rightBarX = totalWidth - 280;
+
+  // Build SVG Content
+  let defsHtml = '';
+  let ribbonsHtml = '';
+  let nodesHtml = '';
+
+  // Ribbons connecting slices
+  activeRows.forEach(([s, t, v], rIdx) => {
+    const sn = sourceNodes[s];
+    const tn = targetNodes[t];
+    if (!sn || !tn) return;
+
+    const sliceHS = sn.val > 0 ? (v / sn.val) * sn.h : 0;
+    const sliceHT = tn.val > 0 ? (v / tn.val) * tn.h : 0;
+
+    const y0a = sn.currentSliceY;
+    const y0b = y0a + sliceHS;
+    sn.currentSliceY = y0b;
+
+    const y1a = tn.currentSliceY;
+    const y1b = y1a + sliceHT;
+    tn.currentSliceY = y1b;
+
+    const x0 = leftBarX + barW;
+    const x1 = rightBarX;
+    const dx = (x1 - x0) * 0.48;
+
+    const gradId = `sankey-grad-${rIdx}`;
+    const fillPaint = sankeyColorMode === 'source' ? sn.color : `url(#${gradId})`;
+
+    defsHtml += `
+      <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="${sn.color}" stop-opacity="${sankeyOpacity}" />
+        <stop offset="100%" stop-color="${tn.color}" stop-opacity="${sankeyOpacity}" />
+      </linearGradient>
+    `;
+
+    const d = `M ${x0.toFixed(1)} ${y0a.toFixed(1)} ` +
+              `C ${(x0 + dx).toFixed(1)} ${y0a.toFixed(1)}, ${(x1 - dx).toFixed(1)} ${y1a.toFixed(1)}, ${x1.toFixed(1)} ${y1a.toFixed(1)} ` +
+              `L ${x1.toFixed(1)} ${y1b.toFixed(1)} ` +
+              `C ${(x1 - dx).toFixed(1)} ${y1b.toFixed(1)}, ${(x0 + dx).toFixed(1)} ${y0b.toFixed(1)}, ${x0.toFixed(1)} ${y0b.toFixed(1)} Z`;
+
+    const pctOfCompany = sn.val > 0 ? ((v / sn.val) * 100).toFixed(1) : '0';
+    const cleanFab = t.replace(' [Fab]', '');
+
+    ribbonsHtml += `
+      <path class="sankey-ribbon"
+            d="${d}"
+            fill="${fillPaint}"
+            fill-opacity="${sankeyOpacity}"
+            stroke="#334155"
+            stroke-width="0.5"
+            stroke-opacity="0.3"
+            data-source="${escapeHtml(s)}"
+            data-target="${escapeHtml(t)}"
+            data-val="${v}"
+            data-pct="${pctOfCompany}"
+            style="transition: fill-opacity 0.2s ease, stroke 0.2s ease; cursor: pointer;"
+            onmouseenter="handleSankeyRibbonHover(event, '${escapeHtml(s)}', '${escapeHtml(cleanFab)}', ${v}, '${pctOfCompany}')"
+            onmousemove="handleSankeyTooltipMove(event)"
+            onmouseleave="handleSankeyRibbonLeave()"
+            onclick="handleSankeyRibbonClick('${escapeHtml(s)}')"
+      />
+    `;
+  });
+
+  // Source Nodes (Left: Laboratórios)
+  sourceKeys.forEach(key => {
+    const sn = sourceNodes[key];
+    const shortName = sn.name.length > 28 ? sn.name.substring(0, 26) + '...' : sn.name;
+    const labelY = sn.y0 + sn.h / 2 + 4;
+    const formattedVal = Number(sn.val).toLocaleString('pt-BR');
+
+    nodesHtml += `
+      <g class="sankey-node-group source-node" data-node="${escapeHtml(sn.name)}"
+         style="cursor: pointer;"
+         onclick="handleSankeyCompanyClick('${escapeHtml(sn.name)}')"
+         onmouseenter="highlightSankeyNodeConnections('${escapeHtml(sn.name)}', 'source')"
+         onmouseleave="resetSankeyHighlights()">
+        <rect x="${leftBarX}" y="${sn.y0.toFixed(1)}" width="${barW}" height="${sn.h.toFixed(1)}" rx="3"
+              fill="${sn.color}" stroke="#0f172a" stroke-width="0.8" />
+        <text x="${leftBarX - 12}" y="${labelY.toFixed(1)}" text-anchor="end" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#0f172a">
+          ${escapeHtml(shortName)}
+          <tspan fill="#64748b" font-weight="normal" font-size="10"> (${formattedVal})</tspan>
+        </text>
+        <title>${escapeHtml(sn.name)} — ${formattedVal} medicamentos mapeados (Clique para isolar)</title>
+      </g>
+    `;
+  });
+
+  // Target Nodes (Right: Fábricas)
+  targetKeys.forEach(key => {
+    const tn = targetNodes[key];
+    const cleanName = tn.name.replace(' [Fab]', '');
+    const shortName = cleanName.length > 32 ? cleanName.substring(0, 30) + '...' : cleanName;
+    const labelY = tn.y0 + tn.h / 2 + 4;
+    const formattedVal = Number(tn.val).toLocaleString('pt-BR');
+
+    nodesHtml += `
+      <g class="sankey-node-group target-node" data-node="${escapeHtml(tn.name)}"
+         style="cursor: pointer;"
+         onclick="handleSankeyFactoryClick('${escapeHtml(cleanName)}')"
+         onmouseenter="highlightSankeyNodeConnections('${escapeHtml(tn.name)}', 'target')"
+         onmouseleave="resetSankeyHighlights()">
+        <rect x="${rightBarX}" y="${tn.y0.toFixed(1)}" width="${barW}" height="${tn.h.toFixed(1)}" rx="3"
+              fill="${tn.color}" stroke="#0f172a" stroke-width="0.8" />
+        <text x="${rightBarX + barW + 12}" y="${labelY.toFixed(1)}" text-anchor="start" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#0f172a">
+          ${escapeHtml(shortName)}
+          <tspan fill="#64748b" font-weight="normal" font-size="10"> (${formattedVal})</tspan>
+        </text>
+        <title>${escapeHtml(cleanName)} — ${formattedVal} medicamentos produzidos (Clique para detalhar)</title>
+      </g>
+    `;
+  });
+
+  container.innerHTML = `
+    <svg id="sankey-svg" width="100%" height="${totalHeightWithMargin}" viewBox="0 0 ${totalWidth} ${totalHeightWithMargin}" style="display: block; overflow: visible;">
+      <defs>
+        ${defsHtml}
+      </defs>
+      <g id="sankey-ribbons-layer">
+        ${ribbonsHtml}
+      </g>
+      <g id="sankey-nodes-layer">
+        ${nodesHtml}
+      </g>
+    </svg>
+    <div id="sankey-tooltip" style="position: absolute; display: none; pointer-events: none; background: #0f172a; color: #f8fafc; padding: 10px 14px; border-radius: 8px; font-size: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); z-index: 1000; max-width: 320px; line-height: 1.4; border: 1px solid #334155;"></div>
+  `;
 }
 
 function setSankeyLimit(limit) {
   sankeyLimit = limit;
+  sankeyFilter = null;
   document.querySelectorAll('#sankey-controls .btn-sankey-density').forEach(btn => btn.classList.remove('active'));
-  const btn = document.getElementById(`btn-sankey-top${limit}`);
+  const btn = document.getElementById(limit === 'all' ? 'btn-sankey-all' : `btn-sankey-top${limit}`);
   if (btn) btn.classList.add('active');
   initSankeyGraph(limit);
 }
@@ -1496,6 +1962,7 @@ window.setSankeyLimit = setSankeyLimit;
 window.setSankeyColorMode = setSankeyColorMode;
 window.setSankeyOpacity = setSankeyOpacity;
 window.renderSankeyChart = renderSankeyChart;
+window.resetSankeyFilter = resetSankeyFilter;
 
 function switchRelView(viewType) {
   const sankeyWrapper = document.getElementById('sankey-wrapper');
@@ -1545,9 +2012,372 @@ window.addEventListener('resize', () => {
 });
 
 // -------------------------------------------------------------
-// Dynamic Drilldown Engine (Underneath Charts in Overview)
+// Unified Filter Architecture (Global Click, Charts & Table)
 // -------------------------------------------------------------
+function renderActiveFiltersBar() {
+  const container = document.getElementById('active-filters-chips');
+  const btnClearAll = document.getElementById('btn-clear-all-filters');
+  if (!container) return;
+
+  const chips = [];
+
+  // 1. Global Click Filter Chip (Blue)
+  if (drilldownState.filterType && drilldownState.filterVal) {
+    const typeLabel = {
+      'pais': 'País',
+      'modelo': 'Modelo Produtivo',
+      'uf': 'UF da Fábrica',
+      'forma': 'Forma Farmacêutica',
+      'embalagem': 'Embalagem Primária',
+      'classe': 'Classe Terapêutica',
+      'tarja': 'Tarja Sanitária',
+      'substancia': 'Princípio Ativo',
+      'empresa': 'Laboratório / Detentora',
+      'fabrica': 'Planta Fabril'
+    }[drilldownState.filterType] || drilldownState.filterType.toUpperCase();
+
+    chips.push(`
+      <span class="filter-chip chip-global" title="Filtro Geral ativo por seleção gráfica">
+        <span class="filter-chip-scope">Geral</span>
+        <span>${escapeHtml(typeLabel)}: <strong>${escapeHtml(drilldownState.filterVal)}</strong></span>
+        <button class="chip-close" onclick="clearGlobalFilter()" title="Remover este filtro geral">×</button>
+      </span>
+    `);
+  }
+
+  // 2. Chart Filter Chips (Green)
+  if (chartFilters.segment && chartFilters.segment !== 'all') {
+    const segName = {
+      'sinteticos': 'Sintéticos / Genéricos',
+      'biologicos': 'Biológicos',
+      'fitoterapicos': 'Fitoterápicos',
+      'dinamizados': 'Dinamizados'
+    }[chartFilters.segment] || chartFilters.segment;
+
+    chips.push(`
+      <span class="filter-chip chip-chart" title="Filtro aplicado aos gráficos de visualização">
+        <span class="filter-chip-scope">Gráficos</span>
+        <span>Segmento: <strong>${escapeHtml(segName)}</strong></span>
+        <button class="chip-close" onclick="clearChartFilter('segment')" title="Remover filtro de segmento dos gráficos">×</button>
+      </span>
+    `);
+  }
+
+  if (chartFilters.origem && chartFilters.origem !== 'all') {
+    const origName = chartFilters.origem === 'nacional' ? 'Apenas Nacional' : 'Apenas Importados';
+    chips.push(`
+      <span class="filter-chip chip-chart" title="Filtro de origem aplicado aos gráficos">
+        <span class="filter-chip-scope">Gráficos</span>
+        <span>Origem: <strong>${escapeHtml(origName)}</strong></span>
+        <button class="chip-close" onclick="clearChartFilter('origem')" title="Remover filtro de origem dos gráficos">×</button>
+      </span>
+    `);
+  }
+
+  if (chartFilters.topN && chartFilters.topN !== 10 && chartFilters.topN !== '10') {
+    const topLabel = chartFilters.topN === 'all' ? 'Todos os Itens' : `Top ${chartFilters.topN}`;
+    chips.push(`
+      <span class="filter-chip chip-chart" title="Filtro de densidade dos gráficos">
+        <span class="filter-chip-scope">Gráficos</span>
+        <span>Corte: <strong>${escapeHtml(topLabel)}</strong></span>
+        <button class="chip-close" onclick="clearChartFilter('topN')" title="Restaurar corte padrão (Top 10)">×</button>
+      </span>
+    `);
+  }
+
+  if (chartFilters.includeUnmapped) {
+    chips.push(`
+      <span class="filter-chip chip-chart" title="Incluindo registros não mapeados na ANVISA nos gráficos">
+        <span class="filter-chip-scope">Gráficos</span>
+        <span>Não Mapeados: <strong>Exibidos</strong></span>
+        <button class="chip-close" onclick="clearChartFilter('includeUnmapped')" title="Ocultar registros não mapeados">×</button>
+      </span>
+    `);
+  }
+
+  // 3. Table Filter Chips (Amber)
+  if (drilldownState.tarja) {
+    chips.push(`
+      <span class="filter-chip chip-table" title="Filtro de tarja aplicado à tabela">
+        <span class="filter-chip-scope">Tabela</span>
+        <span>Tarja: <strong>${escapeHtml(drilldownState.tarja)}</strong></span>
+        <button class="chip-close" onclick="clearTableFilter('tarja')" title="Remover filtro de tarja da tabela">×</button>
+      </span>
+    `);
+  }
+
+  if (drilldownState.tipo) {
+    const tipoLabel = drilldownState.tipo === 'NACIONAL' ? 'Nacional' : 'Importado';
+    chips.push(`
+      <span class="filter-chip chip-table" title="Filtro de origem fabril aplicado à tabela">
+        <span class="filter-chip-scope">Tabela</span>
+        <span>Origem: <strong>${escapeHtml(tipoLabel)}</strong></span>
+        <button class="chip-close" onclick="clearTableFilter('tipo')" title="Remover filtro de origem da tabela">×</button>
+      </span>
+    `);
+  }
+
+  if (drilldownState.q) {
+    chips.push(`
+      <span class="filter-chip chip-table" title="Busca textual na tabela">
+        <span class="filter-chip-scope">Tabela</span>
+        <span>Busca: <strong>"${escapeHtml(drilldownState.q)}"</strong></span>
+        <button class="chip-close" onclick="clearTableFilter('q')" title="Limpar busca textual">×</button>
+      </span>
+    `);
+  }
+
+  if (chips.length > 0) {
+    container.innerHTML = chips.join('');
+    if (btnClearAll) btnClearAll.style.display = 'inline-block';
+  } else {
+    container.innerHTML = `<span class="no-filter-text">Nenhum filtro aplicado. Clique em barras/fatias/nós dos gráficos ou utilize os seletores de cada seção.</span>`;
+    if (btnClearAll) btnClearAll.style.display = 'none';
+  }
+}
+
+function clearGlobalFilter() {
+  drilldownState.filterType = '';
+  drilldownState.filterVal = '';
+  drilldownState.page = 1;
+  setElemText('drilldown-badge', 'Detalhamento Dinâmico');
+  setElemText('drilldown-heading', 'Exibindo todos os dados do catálogo');
+  setElemText('drilldown-subheading', 'Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.');
+  renderActiveFiltersBar();
+  loadDrilldown();
+}
+
+function toggleChartFilterMenu() {
+  const popover = document.getElementById('chart-filters-popover');
+  const btn = document.getElementById('btn-chart-filters-toggle');
+  if (!popover) return;
+  const isOpen = popover.classList.contains('open');
+  if (isOpen) {
+    popover.classList.remove('open');
+    if (btn) btn.classList.remove('open');
+  } else {
+    popover.classList.add('open');
+    if (btn) btn.classList.add('open');
+  }
+}
+window.toggleChartFilterMenu = toggleChartFilterMenu;
+
+function updateChartFilterBadge() {
+  const badge = document.getElementById('chart-filter-count-badge');
+  if (!badge) return;
+  let count = 0;
+  if (chartFilters.segment && chartFilters.segment !== 'all') count++;
+  if (chartFilters.origem && chartFilters.origem !== 'all') count++;
+  if (chartFilters.topN && String(chartFilters.topN) !== '10') count++;
+  if (chartFilters.includeUnmapped) count++;
+
+  if (count > 0) {
+    badge.innerText = count;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function syncChartFilterButtons() {
+  ['segment', 'origem', 'topn'].forEach(grp => {
+    const container = document.getElementById(`toggle-group-${grp}`);
+    if (container) {
+      const curVal = grp === 'topn' ? String(chartFilters.topN) : (grp === 'segment' ? chartFilters.segment : chartFilters.origem);
+      container.querySelectorAll('.toggle-btn').forEach(btn => {
+        const val = btn.getAttribute('data-val');
+        btn.classList.toggle('active', val === curVal);
+      });
+    }
+  });
+  updateChartFilterBadge();
+}
+
+function toggleChartFilterOption(filterName, value) {
+  let newVal = value;
+  // Toggle: If currently selected, toggle off to 'all' (or 10 for topN)
+  if (filterName === 'topN') {
+    if (String(chartFilters.topN) === String(value)) {
+      newVal = 10;
+    }
+  } else {
+    if (chartFilters[filterName] === value) {
+      newVal = 'all';
+    }
+  }
+  chartFilters[filterName] = newVal;
+
+  // Sync fallback select
+  const selId = filterName === 'topN' ? 'chart-filter-topn' : (filterName === 'segment' ? 'chart-filter-segment' : 'chart-filter-origem');
+  const sel = document.getElementById(selId);
+  if (sel) sel.value = String(newVal);
+
+  syncChartFilterButtons();
+  renderActiveFiltersBar();
+  loadCharts();
+}
+window.toggleChartFilterOption = toggleChartFilterOption;
+
+function resetChartFilters() {
+  chartFilters.segment = 'all';
+  chartFilters.origem = 'all';
+  chartFilters.topN = 10;
+  chartFilters.includeUnmapped = false;
+  includeUnmapped = false;
+
+  const selSeg = document.getElementById('chart-filter-segment');
+  if (selSeg) selSeg.value = 'all';
+  const selOrig = document.getElementById('chart-filter-origem');
+  if (selOrig) selOrig.value = 'all';
+  const selTop = document.getElementById('chart-filter-topn');
+  if (selTop) selTop.value = '10';
+  const chkUnm = document.getElementById('toggle-unmapped');
+  if (chkUnm) chkUnm.checked = false;
+
+  syncChartFilterButtons();
+  renderActiveFiltersBar();
+  loadCharts();
+}
+window.resetChartFilters = resetChartFilters;
+
+function clearChartFilter(key) {
+  if (key === 'segment') {
+    chartFilters.segment = 'all';
+    const sel = document.getElementById('chart-filter-segment');
+    if (sel) sel.value = 'all';
+  } else if (key === 'origem') {
+    chartFilters.origem = 'all';
+    const sel = document.getElementById('chart-filter-origem');
+    if (sel) sel.value = 'all';
+  } else if (key === 'topN') {
+    chartFilters.topN = 10;
+    const sel = document.getElementById('chart-filter-topn');
+    if (sel) sel.value = '10';
+  } else if (key === 'includeUnmapped') {
+    chartFilters.includeUnmapped = false;
+    includeUnmapped = false;
+    const chk = document.getElementById('toggle-unmapped');
+    if (chk) chk.checked = false;
+  }
+  syncChartFilterButtons();
+  renderActiveFiltersBar();
+  loadCharts();
+}
+
+function setChartFilter(key, val) {
+  chartFilters[key] = val;
+  syncChartFilterButtons();
+  renderActiveFiltersBar();
+  loadCharts();
+}
+
+function syncTableFilterButtons() {
+  const preta = document.getElementById('toggle-table-tarja-preta');
+  if (preta) preta.classList.toggle('active', drilldownState.tarja === 'Tarja Preta');
+  const verm = document.getElementById('toggle-table-tarja-vermelha');
+  if (verm) verm.classList.toggle('active', drilldownState.tarja === 'Tarja Vermelha');
+  const mip = document.getElementById('toggle-table-tarja-mip');
+  if (mip) mip.classList.toggle('active', drilldownState.tarja === 'Isento de Prescrição (MIP)');
+
+  const nac = document.getElementById('toggle-table-tipo-nac');
+  if (nac) nac.classList.toggle('active', drilldownState.tipo === 'NACIONAL');
+  const imp = document.getElementById('toggle-table-tipo-imp');
+  if (imp) imp.classList.toggle('active', drilldownState.tipo === 'INTERNACIONAL');
+}
+
+function toggleTableFilterOption(key, val) {
+  // Toggle: If currently selected, toggle off!
+  if (drilldownState[key] === val) {
+    drilldownState[key] = '';
+  } else {
+    drilldownState[key] = val;
+  }
+  drilldownState.page = 1;
+
+  syncTableFilterButtons();
+  const sel = document.getElementById(`table-filter-${key}`);
+  if (sel) sel.value = drilldownState[key];
+
+  renderActiveFiltersBar();
+  loadDrilldown();
+}
+window.toggleTableFilterOption = toggleTableFilterOption;
+
+function clearTableFilter(key) {
+  if (key === 'tarja') {
+    drilldownState.tarja = '';
+    const sel = document.getElementById('table-filter-tarja');
+    if (sel) sel.value = '';
+  } else if (key === 'tipo') {
+    drilldownState.tipo = '';
+    const sel = document.getElementById('table-filter-tipo');
+    if (sel) sel.value = '';
+  } else if (key === 'q') {
+    drilldownState.q = '';
+    const inp = document.getElementById('drilldown-search-input');
+    if (inp) inp.value = '';
+  }
+  drilldownState.page = 1;
+  syncTableFilterButtons();
+  renderActiveFiltersBar();
+  loadDrilldown();
+}
+
+function setTableFilter(key, val) {
+  drilldownState[key] = val;
+  drilldownState.page = 1;
+  syncTableFilterButtons();
+  renderActiveFiltersBar();
+  loadDrilldown();
+}
+
+function clearAllFilters() {
+  drilldownState.filterType = '';
+  drilldownState.filterVal = '';
+  drilldownState.q = '';
+  drilldownState.tarja = '';
+  drilldownState.tipo = '';
+  drilldownState.page = 1;
+
+  chartFilters.segment = 'all';
+  chartFilters.origem = 'all';
+  chartFilters.topN = 10;
+  chartFilters.includeUnmapped = false;
+  includeUnmapped = false;
+
+  const inp = document.getElementById('drilldown-search-input');
+  if (inp) inp.value = '';
+  const selTarja = document.getElementById('table-filter-tarja');
+  if (selTarja) selTarja.value = '';
+  const selTipo = document.getElementById('table-filter-tipo');
+  if (selTipo) selTipo.value = '';
+  const selSeg = document.getElementById('chart-filter-segment');
+  if (selSeg) selSeg.value = 'all';
+  const selOrig = document.getElementById('chart-filter-origem');
+  if (selOrig) selOrig.value = 'all';
+  const selTop = document.getElementById('chart-filter-topn');
+  if (selTop) selTop.value = '10';
+  const chkUnm = document.getElementById('toggle-unmapped');
+  if (chkUnm) chkUnm.checked = false;
+
+  setElemText('drilldown-badge', 'Detalhamento Dinâmico');
+  setElemText('drilldown-heading', 'Exibindo todos os dados do catálogo');
+  setElemText('drilldown-subheading', 'Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.');
+
+  syncChartFilterButtons();
+  syncTableFilterButtons();
+  renderActiveFiltersBar();
+  loadCharts();
+  loadDrilldown();
+}
+
 function triggerDrilldown(filterType, filterVal) {
+  // Toggle: If clicking the exact same filter already active, toggle it OFF!
+  if (drilldownState.filterType === filterType && drilldownState.filterVal === filterVal) {
+    clearGlobalFilter();
+    return;
+  }
+
   drilldownState.filterType = filterType;
   drilldownState.filterVal = filterVal;
   drilldownState.page = 1;
@@ -1561,30 +2391,35 @@ function triggerDrilldown(filterType, filterVal) {
   setElemText('drilldown-heading', `Detalhamento: ${filterVal}`);
   setElemText('drilldown-subheading', `Mostrando entidades vinculadas ao critério selecionado no gráfico. Alterne entre Remédios, Fábricas ou Detentoras.`);
 
+  renderActiveFiltersBar();
   loadDrilldown();
 
-  // Smooth scroll to drilldown card
+  // Smooth scroll to drilldown card and highlight table
   const drillSection = document.getElementById('drilldown-section');
   if (drillSection) {
     drillSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    drillSection.classList.remove('table-just-filtered');
+    void drillSection.offsetWidth;
+    drillSection.classList.add('table-just-filtered');
   }
 }
 
 function resetDrilldown() {
-  drilldownState.filterType = '';
-  drilldownState.filterVal = '';
-  drilldownState.page = 1;
-  drilldownState.q = '';
-
-  const searchInput = document.getElementById('drilldown-search-input');
-  if (searchInput) searchInput.value = '';
-
-  setElemText('drilldown-badge', 'Detalhamento Dinâmico');
-  setElemText('drilldown-heading', 'Exibindo todos os dados do catálogo');
-  setElemText('drilldown-subheading', 'Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.');
-
-  loadDrilldown();
+  clearGlobalFilter();
 }
+
+// Click outside popover listener
+document.addEventListener('click', (e) => {
+  const popover = document.getElementById('chart-filters-popover');
+  const wrapper = document.getElementById('chart-filter-menu-wrapper');
+  if (popover && wrapper && popover.classList.contains('open')) {
+    if (!wrapper.contains(e.target)) {
+      popover.classList.remove('open');
+      const btn = document.getElementById('btn-chart-filters-toggle');
+      if (btn) btn.classList.remove('open');
+    }
+  }
+});
 
 function switchDrilldownEntity(entityType) {
   drilldownState.entityType = entityType;
@@ -1616,6 +2451,14 @@ function sortDrilldown(col) {
   loadDrilldown();
 }
 
+function changeDrillPage(delta) {
+  const newPage = drilldownState.page + delta;
+  if (newPage >= 1 && newPage <= drilldownState.totalPages) {
+    drilldownState.page = newPage;
+    loadDrilldown();
+  }
+}
+
 async function loadDrilldown() {
   const thead = document.getElementById('drilldown-thead');
   const tbody = document.getElementById('drilldown-tbody');
@@ -1627,6 +2470,8 @@ async function loadDrilldown() {
       filter_val: drilldownState.filterVal,
       entity_type: drilldownState.entityType,
       q: drilldownState.q,
+      tarja: drilldownState.tarja,
+      tipo: drilldownState.tipo,
       sort_by: drilldownState.sortBy,
       sort_order: drilldownState.sortOrder,
       page: drilldownState.page,
@@ -1638,13 +2483,13 @@ async function loadDrilldown() {
 
     // Update entity counts
     if (data.counts) {
-      setElemText('drill-count-meds', formatNumber(data.counts.medicamentos));
-      setElemText('drill-count-fabs', formatNumber(data.counts.fabricas));
-      setElemText('drill-count-emps', formatNumber(data.counts.empresas));
+      setElemText('drill-count-meds', formatNumber(data.counts.medicamentos || 0));
+      setElemText('drill-count-fabs', formatNumber(data.counts.fabricas || 0));
+      setElemText('drill-count-emps', formatNumber(data.counts.empresas || 0));
     }
 
     drilldownState.totalPages = data.pages || 1;
-    const start = (data.page - 1) * data.limit + 1;
+    const start = data.total > 0 ? (data.page - 1) * data.limit + 1 : 0;
     const end = Math.min(data.page * data.limit, data.total);
     setElemText('drilldown-page-info', `Página ${data.page} de ${data.pages} (${formatNumber(data.total)} itens)`);
     setElemText('drilldown-summary-text', `Mostrando ${formatNumber(start)} - ${formatNumber(end)} de ${formatNumber(data.total)} registros`);
@@ -1668,6 +2513,19 @@ async function loadDrilldown() {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Erro ao carregar dados do drilldown.</td></tr>`;
   }
 }
+
+window.renderActiveFiltersBar = renderActiveFiltersBar;
+window.clearGlobalFilter = clearGlobalFilter;
+window.clearChartFilter = clearChartFilter;
+window.setChartFilter = setChartFilter;
+window.clearTableFilter = clearTableFilter;
+window.setTableFilter = setTableFilter;
+window.clearAllFilters = clearAllFilters;
+window.triggerDrilldown = triggerDrilldown;
+window.resetDrilldown = resetDrilldown;
+window.switchDrilldownEntity = switchDrilldownEntity;
+window.sortDrilldown = sortDrilldown;
+window.changeDrillPage = changeDrillPage;
 
 function renderDrilldownMedicamentos(thead, tbody, items) {
   const getSortIcon = (col) => {
@@ -2459,14 +3317,32 @@ function initSearchAndFilters() {
   // Drilldown search input
   const drillSearch = document.getElementById('drilldown-search-input');
   let drillTimeout = null;
-  drillSearch.addEventListener('input', (e) => {
-    clearTimeout(drillTimeout);
-    drillTimeout = setTimeout(() => {
-      drilldownState.q = e.target.value.trim();
-      drilldownState.page = 1;
-      loadDrilldown();
-    }, 300);
-  });
+  if (drillSearch) {
+    drillSearch.addEventListener('input', (e) => {
+      clearTimeout(drillTimeout);
+      drillTimeout = setTimeout(() => {
+        drilldownState.q = e.target.value.trim();
+        drilldownState.page = 1;
+        renderActiveFiltersBar();
+        loadDrilldown();
+      }, 300);
+    });
+  }
+
+  // Drilldown table dropdown filters
+  const selTableTarja = document.getElementById('table-filter-tarja');
+  if (selTableTarja) {
+    selTableTarja.addEventListener('change', (e) => {
+      setTableFilter('tarja', e.target.value);
+    });
+  }
+
+  const selTableTipo = document.getElementById('table-filter-tipo');
+  if (selTableTipo) {
+    selTableTipo.addEventListener('change', (e) => {
+      setTableFilter('tipo', e.target.value);
+    });
+  }
 
   // Tab 3 Empresas search input
   const searchEmpresa = document.getElementById('search-empresa');
