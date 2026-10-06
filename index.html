@@ -125,6 +125,9 @@
           <p id="header-subtitle">Visão consolidada da indústria farmacêutica brasileira, preços e cadeias produtivas</p>
         </div>
         <div class="header-actions">
+          <a href="analise_industrias_e_fabricas_consolidada.xlsx" id="btn-download-excel" download class="btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #047857; border-color: #a7f3d0; background: #ecfdf5;">
+            Baixar Excel (Indústrias & Fábricas)
+          </a>
           <button class="btn-secondary" onclick="window.location.reload()">
             Atualizar Dados
           </button>
@@ -202,7 +205,7 @@
               <div id="chart-filters-popover" class="chart-filters-popover">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
                   <strong style="font-size: 13px; color: var(--text-dark);">Filtros Exclusivos dos Gráficos</strong>
-                  <button type="button" class="btn-sm btn-secondary" onclick="toggleChartFilterMenu()" style="padding: 2px 8px; font-size: 11px;">Fechar X</button>
+                  <button type="button" class="btn-sm btn-secondary" onclick="toggleChartFilterMenu()" style="padding: 2px 8px; font-size: 11px;">Fechar </button>
                 </div>
 
                 <!-- Segmento Toggle Options -->
@@ -1200,6 +1203,48 @@ LIMIT 20;</textarea>
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: MAPEAMENTO CRUZADO DE VÍNCULOS INDUSTRIAIS (INDÚSTRIAS x FÁBRICAS) -->
+  <!-- ========================================================================= -->
+  <div id="modal-vinculos" class="modal-overlay">
+    <div class="modal-container" style="max-width: 900px;">
+      <div class="modal-header">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <span id="vinc-tipo-badge" class="badge badge-purple">Cadeia Produtiva Industrial</span>
+            <span id="vinc-total-badge" class="badge badge-success">0 Vínculos</span>
+          </div>
+          <h2 id="vinc-titulo" style="font-size: 19px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">Vínculos Industriais</h2>
+          <p id="vinc-subtitulo" style="font-size: 13px; color: var(--text-muted); margin: 0;"></p>
+        </div>
+        <button class="modal-close-btn" onclick="closeVinculosModal()">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 24px; max-height: calc(85vh - 90px); overflow-y: auto;">
+        <!-- KPI Summary Pills -->
+        <div id="vinc-kpi-bar" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+          <!-- Dynamic pills -->
+        </div>
+
+        <!-- Table / Cards List -->
+        <div id="vinc-table-container" class="table-responsive">
+          <table class="modern-table" id="vinc-table">
+            <thead id="vinc-thead"></thead>
+            <tbody id="vinc-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Action Footer -->
+        <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 14px; flex-wrap: wrap; gap: 10px;">
+          <span id="vinc-footer-note" style="font-size: 12px; color: var(--text-muted);">Dados cruzados com registros sanitários ANVISA e CMED.</span>
+          <button id="btn-vinc-filtrar-tabela" class="btn-primary btn-sm" style="font-weight: 700;">
+            Ver na Tabela Principal do Dashboard
+          </button>
+        </div>
       </div>
     </div>
   </div>

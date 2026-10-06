@@ -87,11 +87,7 @@ window.unlockDashboardWithPassword = async function() {
     const testStats = await fetchAndDecryptJson('data/stats.json.enc');
     staticDataCache.stats = testStats;
 
-    if (rememberCheck && rememberCheck.checked) {
-      sessionStorage.setItem('_farma_vault_pwd', enteredPwd);
-    } else {
-      sessionStorage.removeItem('_farma_vault_pwd');
-    }
+    sessionStorage.setItem('_farma_vault_pwd', enteredPwd);
 
     const lockScreen = document.getElementById('crypto-lockscreen');
     if (lockScreen) {
@@ -101,8 +97,11 @@ window.unlockDashboardWithPassword = async function() {
       }, 300);
     }
 
+    // Auto-refresh imediato do dashboard apos descriptografia
     if (typeof window.startDashboardApp === 'function') {
       window.startDashboardApp();
+    } else {
+      window.location.reload();
     }
   } catch (err) {
     console.error('Falha de descriptografia:', err);
@@ -626,6 +625,105 @@ window.fetch = async function(url, options) {
       return new Response(JSON.stringify(found), { headers: { 'Content-Type': 'application/json' } });
     }
 
+    // Static Vinculos Lookup (Industrias x Fabricas)
+    if (urlStr.includes('/api/vinculos') || urlStr.includes('api/vinculos')) {
+      const catList = await getStaticCatalogo();
+      const u = new URL(urlStr, window.location.origin);
+      const tipo = (u.searchParams.get('tipo') || 'detentora').toLowerCase();
+      const nome = decodeURIComponent(u.searchParams.get('nome') || '').trim();
+      const nomeNorm = nome.toUpperCase();
+
+      if (tipo === 'detentora') {
+        const matching = catList.filter(m => (m.detentora || '').toUpperCase().includes(nomeNorm) || nomeNorm.includes((m.detentora || '').toUpperCase()));
+        const fabMap = {};
+        matching.forEach(m => {
+          const fName = m.fabrica || 'Nao Mapeado';
+          if (!fabMap[fName]) {
+            fabMap[fName] = {
+              fabrica: fName,
+              cnpj: m.cnpj_fabrica || '',
+              tipo: m.tipo || 'NACIONAL',
+              pais: m.pais || 'BRASIL',
+              uf: m.uf || '-',
+              cidade: '-',
+              total_meds: 0,
+              precos: [],
+              produtos_set: new Set(),
+              substancias_set: new Set()
+            };
+          }
+          fabMap[fName].total_meds++;
+          if (m.pf_18 > 0) fabMap[fName].precos.push(m.pf_18);
+          if (m.produto) fabMap[fName].produtos_set.add(m.produto);
+          if (m.substancia) fabMap[fName].substancias_set.add(m.substancia);
+        });
+
+        const itens = Object.values(fabMap).map(f => ({
+          fabrica: f.fabrica,
+          cnpj: f.cnpj,
+          tipo: f.tipo,
+          pais: f.pais,
+          uf: f.uf,
+          cidade: f.cidade,
+          total_meds: f.total_meds,
+          preco_medio: f.precos.length ? Number((f.precos.reduce((a, b) => a + b, 0) / f.precos.length).toFixed(2)) : 0,
+          produtos_exemplo: Array.from(f.produtos_set).slice(0, 5),
+          substancias_exemplo: Array.from(f.substancias_set).slice(0, 5)
+        })).sort((a, b) => b.total_meds - a.total_meds);
+
+        return new Response(JSON.stringify({
+          status: 'success',
+          tipo_consulta: 'detentora',
+          entidade_nome: nome,
+          total_vinculos: itens.length,
+          itens: itens
+        }), { headers: { 'Content-Type': 'application/json' } });
+      } else {
+        const matching = catList.filter(m => (m.fabrica || '').toUpperCase().includes(nomeNorm) || nomeNorm.includes((m.fabrica || '').toUpperCase()));
+        const empMap = {};
+        matching.forEach(m => {
+          const eName = m.detentora || 'Nao Informado';
+          if (!empMap[eName]) {
+            empMap[eName] = {
+              detentora: eName,
+              cnpj: m.cnpj_detentora || '',
+              uf: m.uf || '-',
+              capital_social: 0,
+              socios: '-',
+              total_meds: 0,
+              precos: [],
+              produtos_set: new Set(),
+              substancias_set: new Set()
+            };
+          }
+          empMap[eName].total_meds++;
+          if (m.pf_18 > 0) empMap[eName].precos.push(m.pf_18);
+          if (m.produto) empMap[eName].produtos_set.add(m.produto);
+          if (m.substancia) empMap[eName].substancias_set.add(m.substancia);
+        });
+
+        const itens = Object.values(empMap).map(e => ({
+          detentora: e.detentora,
+          cnpj: e.cnpj,
+          uf: e.uf,
+          capital_social: e.capital_social,
+          socios: e.socios,
+          total_meds: e.total_meds,
+          preco_medio: e.precos.length ? Number((e.precos.reduce((a, b) => a + b, 0) / e.precos.length).toFixed(2)) : 0,
+          produtos_exemplo: Array.from(e.produtos_set).slice(0, 5),
+          substancias_exemplo: Array.from(e.substancias_set).slice(0, 5)
+        })).sort((a, b) => b.total_meds - a.total_meds);
+
+        return new Response(JSON.stringify({
+          status: 'success',
+          tipo_consulta: 'fabrica',
+          entidade_nome: nome,
+          total_vinculos: itens.length,
+          itens: itens
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
     // Static Medicamento Modal (Raio-X 360°)
     if (urlStr.includes('/api/medicamento/') || urlStr.includes('api/medicamento/')) {
       const catList = await getStaticCatalogo();
@@ -766,8 +864,8 @@ const setElemText = (id, text) => {
   if (el) el.innerText = text;
 };
 
-// DOM Content Loaded
-document.addEventListener('DOMContentLoaded', () => {
+// Dashboard Application Initializer
+function startDashboardApp() {
   initNavigation();
   loadStats();
   loadCharts();
@@ -782,6 +880,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initOverviewToolbar();
   initNetworkToggles();
   renderActiveFiltersBar();
+}
+window.startDashboardApp = startDashboardApp;
+
+// DOM Content Loaded
+document.addEventListener('DOMContentLoaded', () => {
+  // Em modo estático criptografado (GitHub Pages), aguarda a descriptografia da chave pelo cofre
+  if (typeof isStaticMode !== 'undefined' && isStaticMode && !sessionPassword) {
+    return;
+  }
+  startDashboardApp();
 });
 
 // Navigation / Tabs
@@ -2634,7 +2742,10 @@ function renderDrilldownFabricas(thead, tbody, items) {
       <td style="font-weight: 700; color: var(--primary); text-align: center; font-size: 14px;">${formatNumber(f.total_meds)}</td>
       <td style="font-weight: 600; text-align: center;">${f.total_marcas} marcas</td>
       <td>
-        <div style="display: flex; gap: 6px; align-items: center;">
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button class="btn-primary btn-sm" style="font-weight: 600;" onclick="event.stopPropagation(); showFabricaDetentoras('${f.fabrica.replace(/'/g, "\\'")}')">
+            Ver Detentoras (${f.total_marcas || 0})
+          </button>
           <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); triggerDrilldown('fabrica', '${f.fabrica.replace(/'/g, "\\'")}')">
             Ver Remédios
           </button>
@@ -2686,7 +2797,10 @@ function renderDrilldownEmpresas(thead, tbody, items) {
         ${e.socios || 'Não informado'}
       </td>
       <td>
-        <div style="display: flex; gap: 6px; align-items: center;">
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button class="btn-primary btn-sm" style="font-weight: 600;" onclick="event.stopPropagation(); showDetentoraFabricas('${e.detentora.replace(/'/g, "\\'")}')">
+            Ver Indústrias / Fábricas
+          </button>
           <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); triggerDrilldown('empresa', '${e.detentora.replace(/'/g, "\\'")}')">
             Ver Remédios
           </button>
@@ -2871,9 +2985,14 @@ async function loadEmpresas() {
           ${e.socios_donos_administradores || 'Não informado'}
         </td>
         <td>
-          <button class="btn-primary btn-sm" onclick="event.stopPropagation(); openSocietarioModal('${(e.cnpj_limpo || e.razao_social).replace(/'/g, "\\'")}')">
-            Ver QSA & Contatos
-          </button>
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            <button class="btn-primary btn-sm" style="font-weight: 600;" onclick="event.stopPropagation(); showDetentoraFabricas('${(e.razao_social || e.nome_fantasia).replace(/'/g, "\\'")}')">
+              Ver Fábricas
+            </button>
+            <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); openSocietarioModal('${(e.cnpj_limpo || e.razao_social).replace(/'/g, "\\'")}')">
+              QSA & Contatos
+            </button>
+          </div>
         </td>
       `;
       tbody.appendChild(tr);
@@ -3595,3 +3714,235 @@ function initSqlStudio() {
     });
   });
 }
+
+// -------------------------------------------------------------
+// MODAL VINCULOS INDUSTRIAIS (INDÚSTRIAS x FÁBRICAS)
+// -------------------------------------------------------------
+async function showDetentoraFabricas(detentoraNome) {
+  openVinculosModal('detentora', detentoraNome);
+}
+
+async function showFabricaDetentoras(fabricaNome) {
+  openVinculosModal('fabrica', fabricaNome);
+}
+
+function closeVinculosModal() {
+  const modal = document.getElementById('modal-vinculos');
+  if (modal) modal.classList.remove('open');
+}
+
+async function openVinculosModal(tipo, entidadeNome) {
+  const modal = document.getElementById('modal-vinculos');
+  if (!modal) return;
+  modal.classList.add('open');
+
+  const titulo = document.getElementById('vinc-titulo');
+  const subtitulo = document.getElementById('vinc-subtitulo');
+  const tipoBadge = document.getElementById('vinc-tipo-badge');
+  const totalBadge = document.getElementById('vinc-total-badge');
+  const kpiBar = document.getElementById('vinc-kpi-bar');
+  const thead = document.getElementById('vinc-thead');
+  const tbody = document.getElementById('vinc-tbody');
+  const btnFiltrar = document.getElementById('btn-vinc-filtrar-tabela');
+
+  const isDetentora = (tipo === 'detentora');
+  
+  if (tipoBadge) {
+    tipoBadge.className = isDetentora ? 'badge badge-primary' : 'badge badge-purple';
+    tipoBadge.innerText = isDetentora ? 'Detentora de Registro Sanitário' : 'Planta Fabril Homologada';
+  }
+
+  if (titulo) {
+    titulo.innerText = isDetentora 
+      ? `Fábricas e Plantas Produtoras: ${entidadeNome}`
+      : `Empresas Detentoras / Clientes: ${entidadeNome}`;
+  }
+
+  if (subtitulo) {
+    subtitulo.innerText = isDetentora
+      ? `Mapeamento das indústrias e plantas fabris que produzem medicamentos para este laboratório.`
+      : `Mapeamento das empresas detentoras de marcas com registro sanitário fabricado nesta planta.`;
+  }
+
+  if (totalBadge) totalBadge.innerText = 'Carregando...';
+  if (kpiBar) kpiBar.innerHTML = '';
+  if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Consultando cadeia industrial de suprimentos...</td></tr>`;
+
+  if (btnFiltrar) {
+    btnFiltrar.onclick = () => {
+      closeVinculosModal();
+      triggerDrilldown(isDetentora ? 'empresa' : 'fabrica', entidadeNome);
+    };
+    btnFiltrar.innerText = isDetentora 
+      ? `Ver todos os remédios de ${entidadeNome} no Dashboard`
+      : `Ver todos os remédios da fábrica ${entidadeNome} no Dashboard`;
+  }
+
+  try {
+    const res = await fetch(`/api/vinculos?tipo=${encodeURIComponent(tipo)}&nome=${encodeURIComponent(entidadeNome)}`);
+    const data = await res.json();
+    const itens = data.itens || [];
+
+    if (totalBadge) {
+      totalBadge.innerText = `${itens.length} ${isDetentora ? 'Fábricas Conectadas' : 'Empresas Atendidas'}`;
+    }
+
+    const totalMeds = itens.reduce((acc, cur) => acc + (cur.total_meds || 0), 0);
+    const avgPrice = itens.length ? (itens.reduce((acc, cur) => acc + (cur.preco_medio || 0), 0) / itens.length) : 0;
+
+    if (isDetentora) {
+      const nacCount = itens.filter(i => i.tipo === 'NACIONAL').length;
+      const intCount = itens.filter(i => i.tipo !== 'NACIONAL').length;
+      if (kpiBar) {
+        kpiBar.innerHTML = `
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Total de Fábricas</span>
+            <div style="font-size: 18px; font-weight: 800; color: var(--primary);">${formatNumber(itens.length)}</div>
+          </div>
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Plantas Nacionais</span>
+            <div style="font-size: 18px; font-weight: 800; color: #10b981;">${formatNumber(nacCount)}</div>
+          </div>
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Plantas Internacionais</span>
+            <div style="font-size: 18px; font-weight: 800; color: #8b5cf6;">${formatNumber(intCount)}</div>
+          </div>
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Medicamentos Ativos</span>
+            <div style="font-size: 18px; font-weight: 800; color: var(--text-main);">${formatNumber(totalMeds)}</div>
+          </div>
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Preço Médio Teto</span>
+            <div style="font-size: 18px; font-weight: 800; color: #0284c7;">${formatBRL(avgPrice)}</div>
+          </div>
+        `;
+      }
+
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>Fábrica / Planta Produtora</th>
+            <th>Origem</th>
+            <th>País / UF</th>
+            <th style="text-align: center;">Remédios</th>
+            <th>Preço Médio</th>
+            <th>Produtos de Exemplo</th>
+            <th>Ações</th>
+          </tr>
+        `;
+      }
+
+      if (!tbody) return;
+      if (itens.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">Nenhuma fábrica encontrada para esta detentora.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      itens.forEach(item => {
+        const tr = document.createElement('tr');
+        const badge = item.tipo === 'NACIONAL' 
+          ? `<span class="badge badge-success">Nacional</span>`
+          : `<span class="badge badge-purple">Internacional</span>`;
+        const exProds = (item.produtos_exemplo || []).slice(0, 3).join(', ') || '-';
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 13px;">${item.fabrica}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${item.cnpj || ''}</div>
+          </td>
+          <td>${badge}</td>
+          <td><b>${item.pais}</b> ${item.uf && item.uf !== '-' ? `(${item.uf})` : ''}</td>
+          <td style="text-align: center; font-weight: 700; color: var(--primary); font-size: 14px;">${formatNumber(item.total_meds)}</td>
+          <td style="font-weight: 600;">${formatBRL(item.preco_medio)}</td>
+          <td style="font-size: 11px; color: var(--text-muted); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${exProds}">${exProds}</td>
+          <td>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn-secondary btn-sm" onclick="closeVinculosModal(); triggerDrilldown('fabrica', '${item.fabrica.replace(/'/g, "\\'")}')">
+                Ver Remédios
+              </button>
+              <button class="btn-secondary btn-sm" style="color: var(--primary);" onclick="openSocietarioModal('${(item.cnpj || item.fabrica).replace(/'/g, "\\'")}')">
+                QSA
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+    } else {
+      if (kpiBar) {
+        kpiBar.innerHTML = `
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Detentoras Atendidas</span>
+            <div style="font-size: 18px; font-weight: 800; color: var(--primary);">${formatNumber(itens.length)}</div>
+          </div>
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Medicamentos Produzidos</span>
+            <div style="font-size: 18px; font-weight: 800; color: #10b981;">${formatNumber(totalMeds)}</div>
+          </div>
+          <div class="kpi-mini-card" style="background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px;">
+            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Preço Médio Teto</span>
+            <div style="font-size: 18px; font-weight: 800; color: #0284c7;">${formatBRL(avgPrice)}</div>
+          </div>
+        `;
+      }
+
+      if (thead) {
+        thead.innerHTML = `
+          <tr>
+            <th>Empresa Detentora / Marca</th>
+            <th>CNPJ</th>
+            <th>UF Sede</th>
+            <th style="text-align: center;">Remédios na Fábrica</th>
+            <th>Preço Médio</th>
+            <th>Produtos de Exemplo</th>
+            <th>Ações</th>
+          </tr>
+        `;
+      }
+
+      if (!tbody) return;
+      if (itens.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">Nenhuma detentora encontrada para esta fábrica.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      itens.forEach(item => {
+        const tr = document.createElement('tr');
+        const exProds = (item.produtos_exemplo || []).slice(0, 3).join(', ') || '-';
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 13px;">${item.detentora}</div>
+          </td>
+          <td><code>${item.cnpj || '-'}</code></td>
+          <td><span class="badge badge-info">${item.uf || '-'}</span></td>
+          <td style="text-align: center; font-weight: 700; color: var(--primary); font-size: 14px;">${formatNumber(item.total_meds)}</td>
+          <td style="font-weight: 600;">${formatBRL(item.preco_medio)}</td>
+          <td style="font-size: 11px; color: var(--text-muted); max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${exProds}">${exProds}</td>
+          <td>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn-secondary btn-sm" onclick="closeVinculosModal(); triggerDrilldown('empresa', '${item.detentora.replace(/'/g, "\\'")}')">
+                Ver Remédios
+              </button>
+              <button class="btn-secondary btn-sm" style="color: var(--primary);" onclick="openSocietarioModal('${(item.cnpj || item.detentora).replace(/'/g, "\\'")}')">
+                QSA
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+  } catch (err) {
+    console.error('Erro ao buscar vinculos industriais:', err);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: #ef4444;">Erro ao carregar vínculos industriais. Tente novamente.</td></tr>`;
+  }
+}
+
+window.showDetentoraFabricas = showDetentoraFabricas;
+window.showFabricaDetentoras = showFabricaDetentoras;
+window.openVinculosModal = openVinculosModal;
+window.closeVinculosModal = closeVinculosModal;
+
