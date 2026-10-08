@@ -323,10 +323,7 @@ window.fetch = async function(url, options) {
         return sortOrder === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
       });
       
-      return new Response(JSON.stringify({
-        total: list.length,
-        items: list
-      }), { headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify(list), { headers: { 'Content-Type': 'application/json' } });
     }
 
     // Static Especiais handling
@@ -682,14 +679,29 @@ window.fetch = async function(url, options) {
       };
 
       if (entity === 'empresas') {
+        if (!staticDataCache.empresas) {
+          try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch (e) {}
+        }
+        const empLookup = {};
+        if (staticDataCache.empresas && Array.isArray(staticDataCache.empresas)) {
+          staticDataCache.empresas.forEach(emp => {
+            if (emp.razao_social) empLookup[emp.razao_social.toUpperCase()] = emp;
+            if (emp.nome_fantasia) empLookup[emp.nome_fantasia.toUpperCase()] = emp;
+          });
+        }
+
         const empMap = {};
         filtered.forEach(m => {
           const key = m.detentora || 'Desconhecida';
           if (!empMap[key]) {
+            const cached = empLookup[key.toUpperCase()] || {};
             empMap[key] = {
               detentora: key,
               razao_social: key,
-              cnpj: m.cnpj_detentora || '-',
+              cnpj: m.cnpj_detentora || cached.cnpj_formatado || cached.cnpj_limpo || '-',
+              uf: cached.uf || m.uf || '-',
+              capital_social: cached.capital_social || 0,
+              socios: cached.socios_donos_administradores || '-',
               total_produtos: 0,
               produtos_set: new Set()
             };
@@ -701,6 +713,11 @@ window.fetch = async function(url, options) {
           detentora: e.detentora,
           razao_social: e.razao_social,
           cnpj: e.cnpj,
+          uf: e.uf,
+          capital_social: e.capital_social,
+          socios: e.socios,
+          total_meds: e.total_produtos,
+          total_marcas: e.produtos_set.size,
           total_apresentacoes: e.total_produtos,
           total_produtos: e.produtos_set.size
         }));
@@ -708,13 +725,13 @@ window.fetch = async function(url, options) {
           list = list.filter(e => e.detentora.toLowerCase().includes(q) || (e.cnpj && e.cnpj.includes(q)));
         }
         if (pFaixaQtd) {
-          if (pFaixaQtd === '1a5') list = list.filter(e => e.total_produtos >= 1 && e.total_produtos <= 5);
-          else if (pFaixaQtd === '6a25') list = list.filter(e => e.total_produtos >= 6 && e.total_produtos <= 25);
-          else if (pFaixaQtd === '26a100') list = list.filter(e => e.total_produtos >= 26 && e.total_produtos <= 100);
-          else if (pFaixaQtd === 'acima100') list = list.filter(e => e.total_produtos > 100);
+          if (pFaixaQtd === '1a5') list = list.filter(e => e.total_meds >= 1 && e.total_meds <= 5);
+          else if (pFaixaQtd === '6a25') list = list.filter(e => e.total_meds >= 6 && e.total_meds <= 25);
+          else if (pFaixaQtd === '26a100') list = list.filter(e => e.total_meds >= 26 && e.total_meds <= 100);
+          else if (pFaixaQtd === 'acima100') list = list.filter(e => e.total_meds > 100);
         }
         if (pSortBy === 'total_meds') {
-          list.sort((a, b) => pSortOrder === 'asc' ? a.total_apresentacoes - b.total_apresentacoes : b.total_apresentacoes - a.total_apresentacoes);
+          list.sort((a, b) => pSortOrder === 'asc' ? a.total_meds - b.total_meds : b.total_meds - a.total_meds);
         } else {
           list.sort((a, b) => pSortOrder === 'desc' ? b.detentora.localeCompare(a.detentora) : a.detentora.localeCompare(b.detentora));
         }
@@ -760,6 +777,8 @@ window.fetch = async function(url, options) {
           pais: f.pais,
           tipo: f.tipo,
           uf: f.uf,
+          total_meds: f.total_produtos,
+          total_marcas: f.detentoras_set.size,
           total_apresentacoes: f.total_produtos,
           total_detentoras_atendidas: f.detentoras_set.size
         }));
@@ -767,13 +786,13 @@ window.fetch = async function(url, options) {
           list = list.filter(f => f.fabrica.toLowerCase().includes(q) || (f.pais && f.pais.toLowerCase().includes(q)));
         }
         if (pFaixaQtd) {
-          if (pFaixaQtd === '1a5') list = list.filter(f => f.total_apresentacoes >= 1 && f.total_apresentacoes <= 5);
-          else if (pFaixaQtd === '6a25') list = list.filter(f => f.total_apresentacoes >= 6 && f.total_apresentacoes <= 25);
-          else if (pFaixaQtd === '26a100') list = list.filter(f => f.total_apresentacoes >= 26 && f.total_apresentacoes <= 100);
-          else if (pFaixaQtd === 'acima100') list = list.filter(f => f.total_apresentacoes > 100);
+          if (pFaixaQtd === '1a5') list = list.filter(f => f.total_meds >= 1 && f.total_meds <= 5);
+          else if (pFaixaQtd === '6a25') list = list.filter(f => f.total_meds >= 6 && f.total_meds <= 25);
+          else if (pFaixaQtd === '26a100') list = list.filter(f => f.total_meds >= 26 && f.total_meds <= 100);
+          else if (pFaixaQtd === 'acima100') list = list.filter(f => f.total_meds > 100);
         }
         if (pSortBy === 'total_meds') {
-          list.sort((a, b) => pSortOrder === 'asc' ? a.total_apresentacoes - b.total_apresentacoes : b.total_apresentacoes - a.total_apresentacoes);
+          list.sort((a, b) => pSortOrder === 'asc' ? a.total_meds - b.total_meds : b.total_meds - a.total_meds);
         } else if (pSortBy === 'pais') {
           list.sort((a, b) => pSortOrder === 'desc' ? b.pais.localeCompare(a.pais) : a.pais.localeCompare(b.pais));
         } else {
@@ -1034,6 +1053,140 @@ window.fetch = async function(url, options) {
           }
         ]
       }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Static SQL Studio handling
+    if (urlStr.includes('/api/sql') || urlStr.includes('api/sql')) {
+      const catList = await getStaticCatalogo();
+      if (!staticDataCache.empresas) {
+        try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch (e) {}
+      }
+
+      let reqBody = {};
+      try {
+        if (options && options.body) {
+          reqBody = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+        }
+      } catch (e) {}
+
+      const rawQ = (reqBody.query || '').trim();
+      const qNorm = rawQ.toUpperCase().replace(/\s+/g, ' ');
+
+      if (!rawQ) {
+        return new Response(JSON.stringify({ error: "Query vazia" }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!qNorm.startsWith("SELECT") && !qNorm.startsWith("WITH") && !qNorm.startsWith("EXPLAIN")) {
+        return new Response(JSON.stringify({ error: "Apenas consultas SELECT de leitura sao permitidas" }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const t0 = performance.now();
+      let columns = [];
+      let rows = [];
+
+      try {
+        if (qNorm.includes('EMPRESAS_DETENTORAS')) {
+          columns = ['razao_social', 'capital_social', 'total_produtos_cmed', 'socios_donos_administradores'];
+          let sortedEmps = [...(staticDataCache.empresas || [])];
+          if (qNorm.includes('CAPITAL_SOCIAL DESC')) {
+            sortedEmps.sort((a, b) => (b.capital_social || 0) - (a.capital_social || 0));
+          } else if (qNorm.includes('TOTAL_PRODUTOS_CMED DESC')) {
+            sortedEmps.sort((a, b) => (b.total_produtos_cmed || 0) - (a.total_produtos_cmed || 0));
+          }
+          let lim = 15;
+          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
+          if (limMatch) lim = parseInt(limMatch[1]);
+          rows = sortedEmps.slice(0, lim).map(e => [
+            e.razao_social || '-',
+            e.capital_social || 0,
+            e.total_produtos_cmed || 0,
+            e.socios_donos_administradores || '-'
+          ]);
+        } else if (qNorm.includes('VW_TERCEIRIZACAO_MARCAS')) {
+          columns = ['detentora_marca', 'fabrica_real', 'modelo_producao', 'total_medicamentos'];
+          const cmoMap = {};
+          catList.forEach(m => {
+            const det = m.detentora || '-';
+            const fab = m.fabrica || '-';
+            if (m.tipo === 'NACIONAL' && det !== fab && fab !== 'Não Mapeada' && fab !== '-') {
+              const k = `${det} ||| ${fab}`;
+              cmoMap[k] = (cmoMap[k] || 0) + 1;
+            }
+          });
+          let cmoList = Object.entries(cmoMap).map(([k, count]) => {
+            const [det, fab] = k.split(' ||| ');
+            return { det, fab, mod: 'TERCEIRIZACAO INDUSTRIAL NACIONAL', count };
+          }).sort((a, b) => b.count - a.count);
+          let lim = 20;
+          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
+          if (limMatch) lim = parseInt(limMatch[1]);
+          rows = cmoList.slice(0, lim).map(c => [c.det, c.fab, c.mod, c.count]);
+        } else if (qNorm.includes('GROUP BY FABRICA_REAL') || (qNorm.includes('COUNT(') && qNorm.includes('FABRICA_REAL'))) {
+          columns = ['fabrica_real', 'pais_fabrica', 'total_medicamentos'];
+          const fabMap = {};
+          let source = catList;
+          if (qNorm.includes("PAIS_FABRICA = 'ÍNDIA'") || qNorm.includes("PAIS_FABRICA = 'INDIA'")) {
+            source = catList.filter(m => (m.pais || '').toUpperCase().includes('IND'));
+          }
+          source.forEach(m => {
+            const f = m.fabrica || 'Não Mapeada';
+            if (!fabMap[f]) {
+              fabMap[f] = { fabrica: f, pais: m.pais || '-', regs: new Set() };
+            }
+            fabMap[f].regs.add(m.registro_13 || m.produto);
+          });
+          let fabList = Object.values(fabMap).map(f => ({
+            fabrica: f.fabrica,
+            pais: f.pais,
+            total: f.regs.size
+          })).sort((a, b) => b.total - a.total);
+          let lim = 50;
+          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
+          if (limMatch) lim = parseInt(limMatch[1]);
+          rows = fabList.slice(0, lim).map(f => [f.fabrica, f.pais, f.total]);
+        } else {
+          columns = ['produto_nome', 'detentora_marca', 'fabrica_real', 'pais_fabrica', 'pf_18'];
+          let source = [...catList];
+          if (qNorm.includes("TIPO_FABRICANTE = 'INTERNACIONAL'") || qNorm.includes("PAIS_FABRICA != 'BRASIL'")) {
+            source = source.filter(m => (m.tipo || '').toUpperCase() === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
+          }
+          if (qNorm.includes('ORDER BY PF_18 DESC')) {
+            source.sort((a, b) => (b.pf_18 || 0) - (a.pf_18 || 0));
+          } else if (qNorm.includes('ORDER BY PF_18 ASC')) {
+            source.sort((a, b) => (a.pf_18 || 0) - (b.pf_18 || 0));
+          }
+          let lim = 20;
+          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
+          if (limMatch) lim = parseInt(limMatch[1]);
+          rows = source.slice(0, lim).map(m => [
+            m.produto || '-',
+            m.detentora || '-',
+            m.fabrica || '-',
+            m.pais || '-',
+            m.pf_18 || 0
+          ]);
+        }
+
+        const t1 = performance.now();
+        return new Response(JSON.stringify({
+          columns,
+          rows,
+          total_rows: rows.length,
+          execution_time_ms: Math.round((t1 - t0) * 10) / 10
+        }), { headers: { 'Content-Type': 'application/json' } });
+
+      } catch (err) {
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     }
   }
 
@@ -3722,12 +3875,13 @@ async function loadEmpresas() {
     const data = await res.json();
 
     tbody.innerHTML = '';
-    if (!data || data.length === 0) {
+    const list = Array.isArray(data) ? data : (data.items || []);
+    if (!list || list.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">Nenhum laboratório encontrado.</td></tr>`;
       return;
     }
 
-    data.forEach(e => {
+    list.forEach(e => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>
