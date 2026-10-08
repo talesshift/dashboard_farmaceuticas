@@ -1400,6 +1400,269 @@ body {
   100% { box-shadow: none; }
 }
 
+/* ========================================================================= */
+/* HOVER DROPDOWN MENUS (FILTROS E ORDENAÇÃO) */
+/* ========================================================================= */
+.hover-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.hover-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  user-select: none;
+}
+
+.hover-dropdown-btn:hover,
+.hover-dropdown:hover > .hover-dropdown-btn,
+.hover-dropdown.open > .hover-dropdown-btn {
+  background: #f8fafc;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.hover-dropdown-btn.has-active-filter {
+  background: #ecfdf5;
+  border-color: #059669;
+  color: #047857;
+}
+
+.hover-indicator {
+  font-size: 9px;
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.hover-dropdown:hover > .hover-dropdown-btn .hover-indicator,
+.hover-dropdown.open > .hover-dropdown-btn .hover-indicator {
+  transform: rotate(180deg);
+  color: var(--primary);
+}
+
+.hover-badge {
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 10px;
+  line-height: 1.2;
+}
+
+.hover-badge-amber {
+  background: #d97706;
+}
+
+.hover-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1060;
+  min-width: 290px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 14px 35px -4px rgba(0, 0, 0, 0.18), 0 8px 12px -4px rgba(0, 0, 0, 0.08);
+  padding: 14px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+
+/* Mega menu layout for multi-category tables */
+.hover-dropdown-mega {
+  width: 680px;
+  max-width: 92vw;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+/* Position right aligned if needed */
+.hover-dropdown-right .hover-dropdown-menu {
+  left: auto;
+  right: 0;
+}
+
+/* Open states on hover or class open */
+.hover-dropdown:hover > .hover-dropdown-menu,
+.hover-dropdown.open > .hover-dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(4px);
+}
+
+.hover-menu-header {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hover-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.hover-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hover-option-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+.hover-option-item:hover {
+  background: #f1f5f9;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.hover-option-item.active {
+  background: #eff6ff;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.hover-option-item.active::after {
+  content: "[v]";
+  font-weight: 800;
+  color: var(--primary);
+  margin-left: 8px;
+  font-size: 10px;
+}
+
+/* Toggle Checkbox Format for Multi-Selection */
+.hover-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hover-toggle-item:hover {
+  background: #f1f5f9;
+  color: var(--primary);
+}
+
+.hover-toggle-item.checked {
+  background: #eff6ff;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.hover-toggle-cb {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.hover-group-subbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.hover-quick-btn {
+  background: transparent;
+  border: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.hover-quick-btn:hover {
+  background: #eff6ff;
+  text-decoration: underline;
+}
+
+.hover-menu-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  grid-column: 1 / -1;
+}
+
+.hover-clear-btn {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.hover-clear-btn:hover {
+  background: #fef2f2;
+}
+
 
 
 

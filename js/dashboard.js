@@ -181,15 +181,84 @@ window.fetch = async function(url, options) {
 
       const base = JSON.parse(JSON.stringify(staticDataCache.charts));
 
+      const pTarjas = (parsedUrl.searchParams.get('tarja') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pOrigens = (parsedUrl.searchParams.get('origem') || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s && s !== 'all');
+      const pEmbalagens = (parsedUrl.searchParams.get('embalagem') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pFormas = (parsedUrl.searchParams.get('forma') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+
       if (!incUnmapped) {
         base.paises = (base.paises || []).filter(p => !p.is_unmapped);
         base.modelos = (base.modelos || []).filter(m => !m.is_unmapped);
       }
 
-      if (origem === 'nacional') {
-        base.paises = (base.paises || []).filter(p => p.pais === 'BRASIL');
-      } else if (origem === 'importado') {
-        base.paises = (base.paises || []).filter(p => p.pais !== 'BRASIL');
+      if (pOrigens.length === 1) {
+        if (pOrigens[0] === 'nacional') {
+          base.paises = (base.paises || []).filter(p => p.pais === 'BRASIL');
+        } else if (pOrigens[0] === 'importado') {
+          base.paises = (base.paises || []).filter(p => p.pais !== 'BRASIL');
+        }
+      }
+
+      if (pFormas.length > 0 && Array.isArray(base.formas)) {
+        base.formas = base.formas.filter(f => pFormas.some(target => {
+          const fn = (f.forma || '').toUpperCase();
+          if (target.includes('SOLID')) return ['COMPRIMID', 'CAPSUL', 'CÁPSUL', 'DRAG', 'GRANUL', 'PO', 'PÓ', 'PASTILH'].some(k => fn.includes(k));
+          if (target.includes('LIQUID')) return ['SOLU', 'XAROP', 'SUSPENS', 'EMULS', 'GOTA', 'ELIXIR'].some(k => fn.includes(k));
+          if (target.includes('SEMI')) return ['POMADA', 'CREME', 'GEL', 'PASTA', 'UNGUENTO'].some(k => fn.includes(k));
+          if (target.includes('INJET') || target.includes('ESTERIL')) return ['INJET', 'ESTERIL', 'ESTRIL', 'PERFUS', 'INFUS'].some(k => fn.includes(k));
+          return fn.includes(target);
+        }));
+      }
+
+      if (pEmbalagens.length > 0 && Array.isArray(base.embalagens)) {
+        base.embalagens = base.embalagens.filter(e => pEmbalagens.some(target => {
+          const en = (e.tipo || '').toUpperCase();
+          if (target.includes('BLISTER')) return en.includes('BLISTER');
+          if (target.includes('FRASCO-AMPOLA') || target.includes('FRASCO AMPOLA')) return (en.includes('FRASCO') && en.includes('AMPOLA'));
+          if (target.includes('FRASCO')) return (en.includes('FRASCO') && !en.includes('AMPOLA'));
+          if (target.includes('BISNAGA')) return en.includes('BISNAGA');
+          if (target.includes('SACH') || target.includes('SACHÊ')) return (en.includes('SACH') || en.toLowerCase().includes('ach'));
+          if (target.includes('AMPOLA')) return (en.includes('AMPOLA') && !en.includes('FRASCO'));
+          if (target.includes('SERINGA')) return en.includes('SERINGA');
+          return en.includes(target);
+        }));
+      }
+
+      if (pTarjas.length > 0 && Array.isArray(base.tarjas)) {
+        base.tarjas = base.tarjas.filter(t => pTarjas.some(target => {
+          const tn = (t.tarja || '').toUpperCase();
+          if (target.includes('PRETA')) return tn.includes('PRETA');
+          if (target.includes('RETEN') || target.includes('RESTRI')) return (tn.includes('RETEN') || tn.includes('RESTRI'));
+          if (target.includes('MIP') || target.includes('ISENT')) return (tn.includes('ISENT') || tn.includes('MIP') || tn.includes('SEM TARJA') || tn.includes('(*)'));
+          if (target === 'TARJA VERMELHA') return (tn.includes('VERMELHA') && !tn.includes('RESTRI') && !tn.includes('RETEN'));
+          return tn.includes(target);
+        }));
+      }
+
+      const pEmpresas = (parsedUrl.searchParams.get('empresa') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pClasses = (parsedUrl.searchParams.get('classe') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pSubstancias = (parsedUrl.searchParams.get('substancia') || parsedUrl.searchParams.get('molecula') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pUfs = (parsedUrl.searchParams.get('uf') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pPaises = (parsedUrl.searchParams.get('pais') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pModelos = (parsedUrl.searchParams.get('modelo') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+
+      if (pEmpresas.length > 0 && Array.isArray(base.top_labs)) {
+        base.top_labs = base.top_labs.filter(l => pEmpresas.some(target => (l.detentora || '').toUpperCase().includes(target)));
+      }
+      if (pClasses.length > 0 && Array.isArray(base.classes_terapeuticas)) {
+        base.classes_terapeuticas = base.classes_terapeuticas.filter(c => pClasses.some(target => (c.classe || '').toUpperCase().includes(target)));
+      }
+      if (pSubstancias.length > 0 && Array.isArray(base.moleculas)) {
+        base.moleculas = base.moleculas.filter(m => pSubstancias.some(target => (m.molecula || '').toUpperCase().includes(target)));
+      }
+      if (pUfs.length > 0 && Array.isArray(base.top_ufs)) {
+        base.top_ufs = base.top_ufs.filter(u => pUfs.some(target => (u.uf || '').toUpperCase() === target));
+      }
+      if (pPaises.length > 0 && Array.isArray(base.paises)) {
+        base.paises = base.paises.filter(p => pPaises.some(target => (p.pais || '').toUpperCase() === target));
+      }
+      if (pModelos.length > 0 && Array.isArray(base.modelos)) {
+        base.modelos = base.modelos.filter(m => pModelos.some(target => (m.modelo || '').toUpperCase().includes(target) || (m.raw_key || '').toUpperCase().includes(target)));
       }
 
       ['paises', 'formas', 'embalagens', 'top_labs', 'top_ufs', 'classes_terapeuticas', 'tarjas', 'moleculas'].forEach(k => {
@@ -328,10 +397,58 @@ window.fetch = async function(url, options) {
       const pais = (parsedUrl.searchParams.get('pais') || '').trim();
       const tipo = (parsedUrl.searchParams.get('tipo') || '').toUpperCase().trim();
       const tarja = (parsedUrl.searchParams.get('tarja') || '').toUpperCase().trim();
+      const pForma = (parsedUrl.searchParams.get('forma') || '').toUpperCase().trim();
+      const pEmbalagem = (parsedUrl.searchParams.get('embalagem') || '').toUpperCase().trim();
+      const pSegmento = (parsedUrl.searchParams.get('segmento') || '').toLowerCase().trim();
       const page = parseInt(parsedUrl.searchParams.get('page') || '1');
       const limit = parseInt(parsedUrl.searchParams.get('limit') || '15');
       const sortBy = parsedUrl.searchParams.get('sort_by') || 'produto';
       const sortOrder = parsedUrl.searchParams.get('sort_order') || 'asc';
+
+      function matchForma(mForma, target) {
+        if (!target || target === 'ALL') return true;
+        const f = (mForma || '').toUpperCase();
+        if (target.includes('SOLID')) {
+          return ['COMPRIMID', 'CAPSUL', 'CÁPSUL', 'DRAG', 'GRANUL', 'PO', 'PÓ', 'PASTILH'].some(k => f.includes(k));
+        }
+        if (target.includes('LIQUID')) {
+          return ['SOLU', 'XAROP', 'SUSPENS', 'EMULS', 'GOTA', 'ELIXIR'].some(k => f.includes(k));
+        }
+        if (target.includes('SEMI')) {
+          return ['POMADA', 'CREME', 'GEL', 'PASTA', 'UNGUENTO'].some(k => f.includes(k));
+        }
+        if (target.includes('INJET') || target.includes('ESTERIL')) {
+          return ['INJET', 'ESTERIL', 'ESTRIL', 'PERFUS', 'INFUS'].some(k => f.includes(k));
+        }
+        return f.includes(target);
+      }
+
+      function matchEmbalagem(mEmb, target) {
+        if (!target || target === 'ALL') return true;
+        const e = (mEmb || '').toUpperCase();
+        if (target.includes('BLISTER')) return e.includes('BLISTER');
+        if (target.includes('FRASCO-AMPOLA') || target.includes('FRASCO AMPOLA')) return (e.includes('FRASCO') && e.includes('AMPOLA'));
+        if (target.includes('FRASCO')) return (e.includes('FRASCO') && !e.includes('AMPOLA'));
+        if (target.includes('BISNAGA')) return e.includes('BISNAGA');
+        if (target.includes('SACH') || target.includes('SACHÊ')) return (e.includes('SACH') || (mEmb || '').toLowerCase().includes('ach'));
+        if (target.includes('AMPOLA')) return (e.includes('AMPOLA') && !e.includes('FRASCO'));
+        if (target.includes('SERINGA')) return e.includes('SERINGA');
+        return e.includes(target);
+      }
+
+      function matchSegmento(mCat, target) {
+        if (!target || target === 'all') return true;
+        const c = (mCat || '').toUpperCase();
+        if (target.includes('sint')) return (c.includes('GEN') || c.includes('SIMI') || c.includes('NOVO'));
+        if (target.includes('gen')) return c.includes('GEN');
+        if (target.includes('simi')) return c.includes('SIMI');
+        if (target.includes('novo') || target.includes('refer')) return (c.includes('NOVO') || c.includes('REFER'));
+        if (target.includes('biol')) return (c.includes('BIOL') || c.includes('TERAPIA'));
+        if (target.includes('espec')) return c.includes('ESPEC');
+        if (target.includes('fito')) return c.includes('FITO');
+        if (target.includes('dinam') || target.includes('homeo')) return (c.includes('DINAM') || c.includes('HOMEO'));
+        return c.includes(target.toUpperCase());
+      }
 
       let filtered = catList.filter(m => {
         if (pais && m.pais !== pais) return false;
@@ -347,6 +464,9 @@ window.fetch = async function(url, options) {
             if (!(mTarja.includes('VERMELHA') && !mTarja.includes('RESTRI') && !mTarja.includes('RETEN'))) return false;
           }
         }
+        if (pSegmento && !matchSegmento(m.categoria, pSegmento)) return false;
+        if (pEmbalagem && !matchEmbalagem(m.embalagem, pEmbalagem)) return false;
+        if (pForma && !matchForma(m.forma, pForma)) return false;
         if (q) {
           const match = (m.produto || '').toLowerCase().includes(q) ||
                         (m.substancia || '').toLowerCase().includes(q) ||
@@ -388,25 +508,125 @@ window.fetch = async function(url, options) {
       const fVal = (parsedUrl.searchParams.get('filter_val') || '').trim();
       const entity = (parsedUrl.searchParams.get('entity_type') || 'medicamentos').toLowerCase().trim();
       const q = (parsedUrl.searchParams.get('q') || '').toLowerCase().trim();
-      const pTarja = (parsedUrl.searchParams.get('tarja') || '').toUpperCase().trim();
-      const pTipo = (parsedUrl.searchParams.get('tipo') || '').toUpperCase().trim();
+      const pTarjas = (parsedUrl.searchParams.get('tarja') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pTipos = (parsedUrl.searchParams.get('tipo') || parsedUrl.searchParams.get('origem') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pSegmentos = (parsedUrl.searchParams.get('segmento') || parsedUrl.searchParams.get('segment') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const pEmbalagens = (parsedUrl.searchParams.get('embalagem') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pFormas = (parsedUrl.searchParams.get('forma') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pFaixasPreco = (parsedUrl.searchParams.get('faixa_preco') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const pFaixaQtd = (parsedUrl.searchParams.get('faixa_qtd') || '').toLowerCase().trim();
+      const pEmpresas = (parsedUrl.searchParams.get('empresa') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pFabricas = (parsedUrl.searchParams.get('fabrica') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pSubstancias = (parsedUrl.searchParams.get('substancia') || parsedUrl.searchParams.get('molecula') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pClasses = (parsedUrl.searchParams.get('classe') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pUfs = (parsedUrl.searchParams.get('uf') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pPaises = (parsedUrl.searchParams.get('pais') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pModelos = (parsedUrl.searchParams.get('modelo') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      const pSortBy = (parsedUrl.searchParams.get('sort_by') || 'produto').toLowerCase().trim();
+      const pSortOrder = (parsedUrl.searchParams.get('sort_order') || 'asc').toLowerCase().trim();
       const page = parseInt(parsedUrl.searchParams.get('page') || '1');
       const limit = parseInt(parsedUrl.searchParams.get('limit') || '20');
 
-      let filtered = catList.filter(m => {
-        // Table filters
-        if (pTipo && (m.tipo || '').toUpperCase() !== pTipo) return false;
-        if (pTarja) {
-          const mTarja = (m.tarja || '').toUpperCase();
-          if (pTarja.includes('PRETA') && !mTarja.includes('PRETA')) return false;
-          if ((pTarja.includes('RETEN') || pTarja.includes('RESTRI')) && !(mTarja.includes('RETEN') || mTarja.includes('RESTRI'))) return false;
-          if (pTarja.includes('MIP') || pTarja.includes('ISENT')) {
-            if (!(mTarja.includes('ISENT') || mTarja.includes('MIP') || mTarja.includes('SEM TARJA') || mTarja.includes('(*)'))) return false;
-          }
-          if (pTarja === 'TARJA VERMELHA') {
-            if (!(mTarja.includes('VERMELHA') && !mTarja.includes('RESTRI') && !mTarja.includes('RETEN'))) return false;
-          }
+      function matchForma(mForma, target) {
+        if (!target || target === 'ALL') return true;
+        const f = (mForma || '').toUpperCase();
+        if (target.includes('SOLID')) {
+          return ['COMPRIMID', 'CAPSUL', 'CÁPSUL', 'DRAG', 'GRANUL', 'PO', 'PÓ', 'PASTILH'].some(k => f.includes(k));
         }
+        if (target.includes('LIQUID')) {
+          return ['SOLU', 'XAROP', 'SUSPENS', 'EMULS', 'GOTA', 'ELIXIR'].some(k => f.includes(k));
+        }
+        if (target.includes('SEMI')) {
+          return ['POMADA', 'CREME', 'GEL', 'PASTA', 'UNGUENTO'].some(k => f.includes(k));
+        }
+        if (target.includes('INJET') || target.includes('ESTERIL')) {
+          return ['INJET', 'ESTERIL', 'ESTRIL', 'PERFUS', 'INFUS'].some(k => f.includes(k));
+        }
+        return f.includes(target);
+      }
+
+      function matchEmbalagem(mEmb, target) {
+        if (!target || target === 'ALL') return true;
+        const e = (mEmb || '').toUpperCase();
+        if (target.includes('BLISTER')) return e.includes('BLISTER');
+        if (target.includes('FRASCO-AMPOLA') || target.includes('FRASCO AMPOLA')) return (e.includes('FRASCO') && e.includes('AMPOLA'));
+        if (target.includes('FRASCO')) return (e.includes('FRASCO') && !e.includes('AMPOLA'));
+        if (target.includes('BISNAGA')) return e.includes('BISNAGA');
+        if (target.includes('SACH') || target.includes('SACHÊ')) return (e.includes('SACH') || (mEmb || '').toLowerCase().includes('ach'));
+        if (target.includes('AMPOLA')) return (e.includes('AMPOLA') && !e.includes('FRASCO'));
+        if (target.includes('SERINGA')) return e.includes('SERINGA');
+        return e.includes(target);
+      }
+
+      function matchSegmento(mCat, target) {
+        if (!target || target === 'all') return true;
+        const c = (mCat || '').toUpperCase();
+        if (target.includes('sint')) return (c.includes('GEN') || c.includes('SIMI') || c.includes('NOVO'));
+        if (target.includes('gen')) return c.includes('GEN');
+        if (target.includes('simi')) return c.includes('SIMI');
+        if (target.includes('novo') || target.includes('refer')) return (c.includes('NOVO') || c.includes('REFER'));
+        if (target.includes('biol')) return (c.includes('BIOL') || c.includes('TERAPIA'));
+        if (target.includes('espec')) return c.includes('ESPEC');
+        if (target.includes('fito')) return c.includes('FITO');
+        if (target.includes('dinam') || target.includes('homeo')) return (c.includes('DINAM') || c.includes('HOMEO'));
+        return c.includes(target.toUpperCase());
+      }
+
+      function matchTarja(mTarjaRaw, target) {
+        const mTarja = (mTarjaRaw || '').toUpperCase();
+        if (target.includes('PRETA')) return mTarja.includes('PRETA');
+        if (target.includes('RETEN') || target.includes('RESTRI')) return (mTarja.includes('RETEN') || mTarja.includes('RESTRI'));
+        if (target.includes('MIP') || target.includes('ISENT')) {
+          return (mTarja.includes('ISENT') || mTarja.includes('MIP') || mTarja.includes('SEM TARJA') || mTarja.includes('(*)'));
+        }
+        if (target === 'TARJA VERMELHA') {
+          return (mTarja.includes('VERMELHA') && !mTarja.includes('RESTRI') && !mTarja.includes('RETEN'));
+        }
+        return mTarja.includes(target);
+      }
+
+      function matchPreco(pfRaw, target) {
+        const pf = pfRaw || 0;
+        if (target === 'ate25') return (pf > 0 && pf <= 25);
+        if (target === '25a100') return (pf > 25 && pf <= 100);
+        if (target === '100a500') return (pf > 100 && pf <= 500);
+        if (target === 'acima500') return (pf > 500);
+        return true;
+      }
+
+      let filtered = catList.filter(m => {
+        // Table multi-select filters
+        if (pTipos.length > 0) {
+          const mTipo = (m.tipo || '').toUpperCase();
+          const matchT = pTipos.some(t => {
+            if (t === 'NACIONAL') return mTipo === 'NACIONAL';
+            if (t === 'INTERNACIONAL' || t === 'IMPORTADO') return mTipo === 'INTERNACIONAL';
+            return mTipo === t;
+          });
+          if (!matchT) return false;
+        }
+
+        if (pTarjas.length > 0 && !pTarjas.some(t => matchTarja(m.tarja, t))) return false;
+        if (pSegmentos.length > 0 && !pSegmentos.some(s => matchSegmento(m.categoria, s))) return false;
+        if (pEmbalagens.length > 0 && !pEmbalagens.some(e => matchEmbalagem(m.embalagem, e))) return false;
+        if (pFormas.length > 0 && !pFormas.some(f => matchForma(m.forma, f))) return false;
+        if (pFaixasPreco.length > 0 && !pFaixasPreco.some(fp => matchPreco(m.pf_18, fp))) return false;
+        if (pEmpresas.length > 0 && !pEmpresas.some(emp => (m.detentora || '').toUpperCase().includes(emp))) return false;
+        if (pFabricas.length > 0 && !pFabricas.some(fab => (m.fabrica || '').toUpperCase().includes(fab))) return false;
+        if (pSubstancias.length > 0 && !pSubstancias.some(sub => (m.substancia || '').toUpperCase().includes(sub))) return false;
+        if (pClasses.length > 0 && !pClasses.some(cls => (m.classe || m.categoria || '').toUpperCase().includes(cls))) return false;
+        if (pUfs.length > 0 && !pUfs.some(u => (m.uf || '').toUpperCase() === u)) return false;
+        if (pPaises.length > 0 && !pPaises.some(p => {
+          if (p.includes('NAO MAP') || p.includes('NÃO MAP')) return (m.tipo === null && m.pais === null);
+          return (m.pais || '').toUpperCase() === p;
+        })) return false;
+        if (pModelos.length > 0 && !pModelos.some(mod => {
+          if (mod.includes('IMPORT') && m.tipo === 'INTERNACIONAL') return true;
+          if ((mod.includes('TERCEIRIZ') || mod.includes('CMO')) && (m.tipo === 'NACIONAL' && m.detentora !== m.fabrica)) return true;
+          if ((mod.includes('PROPRIA') || mod.includes('PRÓPRIA')) && (m.tipo === 'NACIONAL' && m.detentora === m.fabrica)) return true;
+          if (mod.includes('NAO MAP') || mod.includes('NÃO MAP')) return (m.tipo === null && m.pais === null);
+          return false;
+        })) return false;
 
         // Global Chart Click filters
         if (fType === 'pais') {
@@ -434,9 +654,9 @@ window.fetch = async function(url, options) {
             if (!(mTarja.includes('VERMELHA') && !mTarja.includes('RESTRI') && !mTarja.includes('RETEN'))) return false;
           }
         } else if (fType === 'forma' || fType === 'forma_farmaceutica') {
-          if (!(m.forma || '').toUpperCase().includes(fVal.toUpperCase())) return false;
+          if (!matchForma(m.forma, fVal.toUpperCase())) return false;
         } else if (fType === 'embalagem') {
-          if (!(m.embalagem || '').toUpperCase().includes(fVal.toUpperCase())) return false;
+          if (!matchEmbalagem(m.embalagem, fVal.toUpperCase())) return false;
         } else if (fType === 'uf') {
           if ((m.uf || '').toUpperCase() !== fVal.toUpperCase()) return false;
         } else if (fType === 'detentora' || fType === 'empresa') {
@@ -446,7 +666,7 @@ window.fetch = async function(url, options) {
         } else if (fType === 'substancia' || fType === 'molecula') {
           if (!(m.substancia || '').toUpperCase().includes(fVal.toUpperCase())) return false;
         } else if (fType === 'classe') {
-          if (!(m.categoria || '').toUpperCase().includes(fVal.toUpperCase())) return false;
+          if (!matchSegmento(m.categoria, fVal.toLowerCase()) && !(m.categoria || '').toUpperCase().includes(fVal.toUpperCase())) return false;
         }
         return true;
       });
@@ -487,7 +707,17 @@ window.fetch = async function(url, options) {
         if (q) {
           list = list.filter(e => e.detentora.toLowerCase().includes(q) || (e.cnpj && e.cnpj.includes(q)));
         }
-        list.sort((a, b) => b.total_apresentacoes - a.total_apresentacoes);
+        if (pFaixaQtd) {
+          if (pFaixaQtd === '1a5') list = list.filter(e => e.total_produtos >= 1 && e.total_produtos <= 5);
+          else if (pFaixaQtd === '6a25') list = list.filter(e => e.total_produtos >= 6 && e.total_produtos <= 25);
+          else if (pFaixaQtd === '26a100') list = list.filter(e => e.total_produtos >= 26 && e.total_produtos <= 100);
+          else if (pFaixaQtd === 'acima100') list = list.filter(e => e.total_produtos > 100);
+        }
+        if (pSortBy === 'total_meds') {
+          list.sort((a, b) => pSortOrder === 'asc' ? a.total_apresentacoes - b.total_apresentacoes : b.total_apresentacoes - a.total_apresentacoes);
+        } else {
+          list.sort((a, b) => pSortOrder === 'desc' ? b.detentora.localeCompare(a.detentora) : a.detentora.localeCompare(b.detentora));
+        }
         const total = list.length;
         const pages = Math.ceil(total / limit) || 1;
         const items = list.slice((page - 1) * limit, page * limit);
@@ -536,7 +766,19 @@ window.fetch = async function(url, options) {
         if (q) {
           list = list.filter(f => f.fabrica.toLowerCase().includes(q) || (f.pais && f.pais.toLowerCase().includes(q)));
         }
-        list.sort((a, b) => b.total_apresentacoes - a.total_apresentacoes);
+        if (pFaixaQtd) {
+          if (pFaixaQtd === '1a5') list = list.filter(f => f.total_apresentacoes >= 1 && f.total_apresentacoes <= 5);
+          else if (pFaixaQtd === '6a25') list = list.filter(f => f.total_apresentacoes >= 6 && f.total_apresentacoes <= 25);
+          else if (pFaixaQtd === '26a100') list = list.filter(f => f.total_apresentacoes >= 26 && f.total_apresentacoes <= 100);
+          else if (pFaixaQtd === 'acima100') list = list.filter(f => f.total_apresentacoes > 100);
+        }
+        if (pSortBy === 'total_meds') {
+          list.sort((a, b) => pSortOrder === 'asc' ? a.total_apresentacoes - b.total_apresentacoes : b.total_apresentacoes - a.total_apresentacoes);
+        } else if (pSortBy === 'pais') {
+          list.sort((a, b) => pSortOrder === 'desc' ? b.pais.localeCompare(a.pais) : a.pais.localeCompare(b.pais));
+        } else {
+          list.sort((a, b) => pSortOrder === 'desc' ? b.fabrica.localeCompare(a.fabrica) : a.fabrica.localeCompare(b.fabrica));
+        }
         const total = list.length;
         const pages = Math.ceil(total / limit) || 1;
         const items = list.slice((page - 1) * limit, page * limit);
@@ -557,7 +799,15 @@ window.fetch = async function(url, options) {
       if (q) {
         filtered = filtered.filter(m => (m.produto || '').toLowerCase().includes(q) || (m.substancia || '').toLowerCase().includes(q) || (m.registro_13 || '').includes(q));
       }
-      filtered.sort((a, b) => (a.produto || '').localeCompare(b.produto || ''));
+      if (pSortBy === 'pf_18' || pSortBy === 'preco') {
+        filtered.sort((a, b) => pSortOrder === 'asc' ? (a.pf_18 || 0) - (b.pf_18 || 0) : (b.pf_18 || 0) - (a.pf_18 || 0));
+      } else if (pSortBy === 'tarja') {
+        filtered.sort((a, b) => pSortOrder === 'desc' ? (b.tarja || '').localeCompare(a.tarja || '') : (a.tarja || '').localeCompare(b.tarja || ''));
+      } else if (pSortBy === 'pais') {
+        filtered.sort((a, b) => pSortOrder === 'desc' ? (b.pais || '').localeCompare(a.pais || '') : (a.pais || '').localeCompare(b.pais || ''));
+      } else {
+        filtered.sort((a, b) => pSortOrder === 'desc' ? (b.produto || '').localeCompare(a.produto || '') : (a.produto || '').localeCompare(b.produto || ''));
+      }
       const total = filtered.length;
       const pages = Math.ceil(total / limit) || 1;
       const items = filtered.slice((page - 1) * limit, page * limit);
@@ -814,6 +1064,9 @@ let currentFilters = {
   pais: '',
   tipo: '',
   tarja: '',
+  forma: '',
+  embalagem: '',
+  segmento: '',
   sortBy: 'produto',
   sortOrder: 'asc'
 };
@@ -831,8 +1084,29 @@ let chartFilters = {
   segment: 'all',
   origem: 'all',
   topN: 10,
-  includeUnmapped: false
+  includeUnmapped: false,
+  sortBy: 'volume_desc',
+  syncWithTable: false
 };
+
+// Multi-select toggle filters state
+let activeFilters = {
+  segment: new Set(),
+  origem: new Set(),
+  forma: new Set(),
+  embalagem: new Set(),
+  tarja: new Set(),
+  faixa_qtd: new Set(),
+  faixa_preco: new Set(),
+  empresa: new Set(),
+  fabrica: new Set(),
+  substancia: new Set(),
+  classe: new Set(),
+  uf: new Set(),
+  pais: new Set(),
+  modelo: new Set()
+};
+
 
 let drilldownState = {
   filterType: '',
@@ -841,6 +1115,11 @@ let drilldownState = {
   q: '',
   tarja: '',
   tipo: '',
+  segmento: '',
+  embalagem: '',
+  forma: '',
+  faixa_preco: '',
+  faixa_qtd: '',
   sortBy: 'produto',
   sortOrder: 'asc',
   page: 1,
@@ -879,6 +1158,8 @@ function startDashboardApp() {
   initSqlStudio();
   initOverviewToolbar();
   initNetworkToggles();
+  syncChartHoverUI();
+  syncTableHoverUI();
   renderActiveFiltersBar();
 }
 window.startDashboardApp = startDashboardApp;
@@ -984,15 +1265,102 @@ function initOverviewToolbar() {
 // 2. Load Charts
 async function loadCharts() {
   try {
-    const params = new URLSearchParams({
-      include_unmapped: chartFilters.includeUnmapped,
-      segment: chartFilters.segment,
-      origem: chartFilters.origem,
-      top_n: chartFilters.topN
-    });
-    const res = await fetch(`/api/charts?${params}`);
+    const params = new URLSearchParams();
+    params.set('include_unmapped', chartFilters.includeUnmapped);
+    params.set('top_n', chartFilters.topN);
+
+    // Multi-select filters applied directly to charts
+    if (activeFilters.segment.size > 0) {
+      params.set('segment', Array.from(activeFilters.segment).join(','));
+    } else if (chartFilters.segment && chartFilters.segment !== 'all') {
+      params.set('segment', chartFilters.segment);
+    }
+
+    if (activeFilters.origem.size > 0) {
+      params.set('origem', Array.from(activeFilters.origem).join(','));
+    } else if (chartFilters.origem && chartFilters.origem !== 'all') {
+      params.set('origem', chartFilters.origem);
+    }
+
+    if (activeFilters.forma.size > 0) {
+      params.set('forma', Array.from(activeFilters.forma).join(','));
+    }
+
+    if (activeFilters.embalagem.size > 0) {
+      params.set('embalagem', Array.from(activeFilters.embalagem).join(','));
+    }
+
+    if (activeFilters.tarja.size > 0) {
+      params.set('tarja', Array.from(activeFilters.tarja).join(','));
+    }
+
+    if (activeFilters.faixa_preco.size > 0) {
+      params.set('faixa_preco', Array.from(activeFilters.faixa_preco).join(','));
+    }
+
+    if (activeFilters.faixa_qtd.size > 0) {
+      params.set('faixa_qtd', Array.from(activeFilters.faixa_qtd).join(','));
+    }
+
+    if (activeFilters.empresa.size > 0) {
+      params.set('empresa', Array.from(activeFilters.empresa).join(','));
+    }
+
+    if (activeFilters.fabrica.size > 0) {
+      params.set('fabrica', Array.from(activeFilters.fabrica).join(','));
+    }
+
+    if (activeFilters.substancia.size > 0) {
+      params.set('substancia', Array.from(activeFilters.substancia).join(','));
+    }
+
+    if (activeFilters.classe.size > 0) {
+      params.set('classe', Array.from(activeFilters.classe).join(','));
+    }
+
+    if (activeFilters.uf.size > 0) {
+      params.set('uf', Array.from(activeFilters.uf).join(','));
+    }
+
+    if (activeFilters.pais.size > 0) {
+      params.set('pais', Array.from(activeFilters.pais).join(','));
+    }
+
+    if (activeFilters.modelo.size > 0) {
+      params.set('modelo', Array.from(activeFilters.modelo).join(','));
+    }
+
+    if (drilldownState.filterType && drilldownState.filterVal) {
+      params.set('filter_type', drilldownState.filterType);
+      params.set('filter_val', drilldownState.filterVal);
+    }
+
+    const res = await fetch(`/api/charts?${params.toString()}`);
     const data = await res.json();
     const topLimit = chartFilters.topN === 'all' ? 999 : (parseInt(chartFilters.topN) || 10);
+
+    // Dynamic Chart Data Sorting Helper
+    function sortChartArray(arr, nameKey, valKey = 'total') {
+      if (!arr || !Array.isArray(arr)) return arr;
+      const copy = [...arr];
+      if (chartFilters.sortBy === 'volume_asc') {
+        copy.sort((a, b) => (a[valKey] || 0) - (b[valKey] || 0));
+      } else if (chartFilters.sortBy === 'nome_asc') {
+        copy.sort((a, b) => String(a[nameKey] || '').localeCompare(String(b[nameKey] || '')));
+      } else if (chartFilters.sortBy === 'nome_desc') {
+        copy.sort((a, b) => String(b[nameKey] || '').localeCompare(String(a[nameKey] || '')));
+      } else {
+        copy.sort((a, b) => (b[valKey] || 0) - (a[valKey] || 0));
+      }
+      return copy;
+    }
+
+    if (data.paises) data.paises = sortChartArray(data.paises, 'pais', 'total');
+    if (data.top_ufs) data.top_ufs = sortChartArray(data.top_ufs, 'uf', 'total');
+    if (data.precos_origem) data.precos_origem = sortChartArray(data.precos_origem, 'origem', 'preco_medio');
+    if (data.formas) data.formas = sortChartArray(data.formas, 'forma', 'total');
+    if (data.embalagens) data.embalagens = sortChartArray(data.embalagens, 'tipo', 'total');
+    if (data.classes_terapeuticas) data.classes_terapeuticas = sortChartArray(data.classes_terapeuticas, 'classe', 'total');
 
     // Palette Colors
     const palette = ['#10b981', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -1630,7 +1998,26 @@ async function initSankeyGraph(limit = sankeyLimit) {
   if (!container) return;
 
   try {
-    const res = await fetch(`/api/sankey?limit=${limit}`);
+    const params = new URLSearchParams();
+    params.set('limit', limit);
+    if (activeFilters.segment.size > 0) params.set('segment', Array.from(activeFilters.segment).join(','));
+    if (activeFilters.origem.size > 0) params.set('origem', Array.from(activeFilters.origem).join(','));
+    if (activeFilters.forma.size > 0) params.set('forma', Array.from(activeFilters.forma).join(','));
+    if (activeFilters.embalagem.size > 0) params.set('embalagem', Array.from(activeFilters.embalagem).join(','));
+    if (activeFilters.tarja.size > 0) params.set('tarja', Array.from(activeFilters.tarja).join(','));
+    if (activeFilters.faixa_preco.size > 0) params.set('faixa_preco', Array.from(activeFilters.faixa_preco).join(','));
+    if (activeFilters.empresa.size > 0) params.set('empresa', Array.from(activeFilters.empresa).join(','));
+    if (activeFilters.fabrica.size > 0) params.set('fabrica', Array.from(activeFilters.fabrica).join(','));
+    if (activeFilters.substancia.size > 0) params.set('substancia', Array.from(activeFilters.substancia).join(','));
+    if (activeFilters.classe.size > 0) params.set('classe', Array.from(activeFilters.classe).join(','));
+    if (activeFilters.uf.size > 0) params.set('uf', Array.from(activeFilters.uf).join(','));
+    if (activeFilters.pais.size > 0) params.set('pais', Array.from(activeFilters.pais).join(','));
+    if (activeFilters.modelo.size > 0) params.set('modelo', Array.from(activeFilters.modelo).join(','));
+    if (drilldownState.filterType && drilldownState.filterVal) {
+      params.set('filter_type', drilldownState.filterType);
+      params.set('filter_val', drilldownState.filterVal);
+    }
+    const res = await fetch(`/api/sankey?${params.toString()}`);
     const data = await res.json();
     sankeyData = data;
     renderSankeyChart();
@@ -2120,8 +2507,183 @@ window.addEventListener('resize', () => {
 });
 
 // -------------------------------------------------------------
-// Unified Filter Architecture (Global Click, Charts & Table)
+// Unified Filter Architecture (Multi-Toggle Checkboxes, Charts & Table)
 // -------------------------------------------------------------
+const FILTER_LABELS = {
+  segment: {
+    'sinteticos': 'Sintéticos em Geral',
+    'genericos': 'Genéricos',
+    'similares': 'Similares',
+    'novos': 'Novos / Referência',
+    'biologicos': 'Biológicos',
+    'especificos': 'Específicos',
+    'fitoterapicos': 'Fitoterápicos',
+    'dinamizados': 'Dinamizados'
+  },
+  origem: {
+    'nacional': 'Fabricação Nacional',
+    'importado': 'Plantas Importadas'
+  },
+  forma: {
+    'Solida': 'Sólida',
+    'Liquida': 'Líquida',
+    'Semi-solida': 'Semi-sólida',
+    'Injetavel': 'Injetável'
+  },
+  embalagem: {
+    'Blister': 'Blister',
+    'Frasco': 'Frasco',
+    'Frasco-Ampola': 'Frasco-Ampola',
+    'Bisnaga': 'Bisnaga',
+    'Sachê': 'Sachê',
+    'Ampola': 'Ampola',
+    'Seringa': 'Seringa Preenchida'
+  },
+  tarja: {
+    'Tarja Preta': 'Tarja Preta',
+    'Tarja Vermelha': 'Tarja Vermelha',
+    'Tarja Vermelha (Retenção de Receita)': 'Tarja Vermelha (Retenção)',
+    'Isento de Prescrição (MIP)': 'MIP / Sem Tarja'
+  },
+  faixa_qtd: {
+    '1a5': '1 a 5 medicamentos',
+    '6a25': '6 a 25 medicamentos',
+    '26a100': '26 a 100 medicamentos',
+    'acima100': 'Mais de 100 medicamentos'
+  },
+  faixa_preco: {
+    'ate25': 'Até R$ 25,00',
+    '25a100': 'R$ 25,00 a R$ 100,00',
+    '100a500': 'R$ 100,00 a R$ 500,00',
+    'acima500': 'Acima de R$ 500,00'
+  }
+};
+
+function syncLegacyFilterState() {
+  chartFilters.segment = activeFilters.segment.size > 0 ? Array.from(activeFilters.segment).join(',') : 'all';
+  chartFilters.origem = activeFilters.origem.size > 0 ? Array.from(activeFilters.origem).join(',') : 'all';
+
+  drilldownState.segmento = activeFilters.segment.size > 0 ? Array.from(activeFilters.segment).join(',') : '';
+  drilldownState.tipo = activeFilters.origem.size > 0 ? Array.from(activeFilters.origem).map(o => o === 'nacional' ? 'NACIONAL' : 'INTERNACIONAL').join(',') : '';
+  drilldownState.forma = activeFilters.forma.size > 0 ? Array.from(activeFilters.forma).join(',') : '';
+  drilldownState.embalagem = activeFilters.embalagem.size > 0 ? Array.from(activeFilters.embalagem).join(',') : '';
+  drilldownState.tarja = activeFilters.tarja.size > 0 ? Array.from(activeFilters.tarja).join(',') : '';
+  drilldownState.faixa_qtd = activeFilters.faixa_qtd.size > 0 ? Array.from(activeFilters.faixa_qtd).join(',') : '';
+  drilldownState.faixa_preco = activeFilters.faixa_preco.size > 0 ? Array.from(activeFilters.faixa_preco).join(',') : '';
+}
+
+function syncAllCheckboxInputs() {
+  document.querySelectorAll('input.hover-toggle-cb').forEach(cb => {
+    const grp = cb.getAttribute('data-group');
+    const val = cb.value;
+    const isChecked = activeFilters[grp] ? activeFilters[grp].has(val) : false;
+    cb.checked = isChecked;
+    const parentLabel = cb.closest('.hover-toggle-item');
+    if (parentLabel) {
+      parentLabel.classList.toggle('checked', isChecked);
+      parentLabel.classList.toggle('active', isChecked);
+    }
+  });
+}
+
+function updateFilterBadges() {
+  const chartBadge = document.getElementById('chart-filter-count-badge');
+  if (chartBadge) {
+    let count = 0;
+    Object.keys(activeFilters).forEach(k => {
+      count += activeFilters[k].size;
+    });
+    if (chartFilters.topN && String(chartFilters.topN) !== '10') count++;
+    if (chartFilters.includeUnmapped) count++;
+    if (count > 0) {
+      chartBadge.innerText = count;
+      chartBadge.style.display = 'inline-block';
+    } else {
+      chartBadge.style.display = 'none';
+    }
+  }
+
+  const tableBadge = document.getElementById('table-filter-count-badge');
+  if (tableBadge) {
+    let count = 0;
+    Object.keys(activeFilters).forEach(k => {
+      count += activeFilters[k].size;
+    });
+    if (drilldownState.q) count++;
+    if (count > 0) {
+      tableBadge.innerText = count;
+      tableBadge.style.display = 'inline-block';
+    } else {
+      tableBadge.style.display = 'none';
+    }
+  }
+}
+
+function onToggleFilterChange(group, val, isChecked) {
+  if (!activeFilters[group]) activeFilters[group] = new Set();
+  if (isChecked) {
+    activeFilters[group].add(val);
+  } else {
+    activeFilters[group].delete(val);
+  }
+
+  syncLegacyFilterState();
+  syncAllCheckboxInputs();
+  updateFilterBadges();
+  renderActiveFiltersBar();
+
+  // Atualiza graficos, fluxos industriais (Sankey) e tabela dinamicamente
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  drilldownState.page = 1;
+  loadDrilldown();
+}
+window.onToggleFilterChange = onToggleFilterChange;
+
+function toggleSelectAll(group, selectAll) {
+  if (!activeFilters[group]) activeFilters[group] = new Set();
+  const cbs = document.querySelectorAll(`input.hover-toggle-cb[data-group="${group}"]`);
+  cbs.forEach(cb => {
+    cb.checked = !!selectAll;
+    if (selectAll) {
+      activeFilters[group].add(cb.value);
+    }
+  });
+  if (!selectAll) {
+    activeFilters[group].clear();
+  }
+
+  syncLegacyFilterState();
+  syncAllCheckboxInputs();
+  updateFilterBadges();
+  renderActiveFiltersBar();
+
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  drilldownState.page = 1;
+  loadDrilldown();
+}
+window.toggleSelectAll = toggleSelectAll;
+
+function clearFilterValue(group, val) {
+  if (activeFilters[group]) {
+    activeFilters[group].delete(val);
+    if (drilldownState.filterVal === val) {
+      drilldownState.filterType = '';
+      drilldownState.filterVal = '';
+    }
+    syncLegacyFilterState();
+    syncAllCheckboxInputs();
+    updateFilterBadges();
+    renderActiveFiltersBar();
+    loadCharts();
+    if (typeof initSankeyGraph === 'function') initSankeyGraph();
+    drilldownState.page = 1;
+    loadDrilldown();
+  }
+}
+window.clearFilterValue = clearFilterValue;
+
 function renderActiveFiltersBar() {
   const container = document.getElementById('active-filters-chips');
   const btnClearAll = document.getElementById('btn-clear-all-filters');
@@ -2129,66 +2691,14 @@ function renderActiveFiltersBar() {
 
   const chips = [];
 
-  // 1. Global Click Filter Chip (Blue)
-  if (drilldownState.filterType && drilldownState.filterVal) {
-    const typeLabel = {
-      'pais': 'País',
-      'modelo': 'Modelo Produtivo',
-      'uf': 'UF da Fábrica',
-      'forma': 'Forma Farmacêutica',
-      'embalagem': 'Embalagem Primária',
-      'classe': 'Classe Terapêutica',
-      'tarja': 'Tarja Sanitária',
-      'substancia': 'Princípio Ativo',
-      'empresa': 'Laboratório / Detentora',
-      'fabrica': 'Planta Fabril'
-    }[drilldownState.filterType] || drilldownState.filterType.toUpperCase();
-
-    chips.push(`
-      <span class="filter-chip chip-global" title="Filtro Geral ativo por seleção gráfica">
-        <span class="filter-chip-scope">Geral</span>
-        <span>${escapeHtml(typeLabel)}: <strong>${escapeHtml(drilldownState.filterVal)}</strong></span>
-        <button class="chip-close" onclick="clearGlobalFilter()" title="Remover este filtro geral">×</button>
-      </span>
-    `);
-  }
-
-  // 2. Chart Filter Chips (Green)
-  if (chartFilters.segment && chartFilters.segment !== 'all') {
-    const segName = {
-      'sinteticos': 'Sintéticos / Genéricos',
-      'biologicos': 'Biológicos',
-      'fitoterapicos': 'Fitoterápicos',
-      'dinamizados': 'Dinamizados'
-    }[chartFilters.segment] || chartFilters.segment;
-
-    chips.push(`
-      <span class="filter-chip chip-chart" title="Filtro aplicado aos gráficos de visualização">
-        <span class="filter-chip-scope">Gráficos</span>
-        <span>Segmento: <strong>${escapeHtml(segName)}</strong></span>
-        <button class="chip-close" onclick="clearChartFilter('segment')" title="Remover filtro de segmento dos gráficos">×</button>
-      </span>
-    `);
-  }
-
-  if (chartFilters.origem && chartFilters.origem !== 'all') {
-    const origName = chartFilters.origem === 'nacional' ? 'Apenas Nacional' : 'Apenas Importados';
-    chips.push(`
-      <span class="filter-chip chip-chart" title="Filtro de origem aplicado aos gráficos">
-        <span class="filter-chip-scope">Gráficos</span>
-        <span>Origem: <strong>${escapeHtml(origName)}</strong></span>
-        <button class="chip-close" onclick="clearChartFilter('origem')" title="Remover filtro de origem dos gráficos">×</button>
-      </span>
-    `);
-  }
-
+  // 1. Chart Filter Chips: topN, includeUnmapped, sortBy
   if (chartFilters.topN && chartFilters.topN !== 10 && chartFilters.topN !== '10') {
     const topLabel = chartFilters.topN === 'all' ? 'Todos os Itens' : `Top ${chartFilters.topN}`;
     chips.push(`
       <span class="filter-chip chip-chart" title="Filtro de densidade dos gráficos">
         <span class="filter-chip-scope">Gráficos</span>
         <span>Corte: <strong>${escapeHtml(topLabel)}</strong></span>
-        <button class="chip-close" onclick="clearChartFilter('topN')" title="Restaurar corte padrão (Top 10)">×</button>
+        <button class="chip-close" onclick="clearChartFilter('topN')" title="Restaurar corte padrão (Top 10)">&times;</button>
       </span>
     `);
   }
@@ -2198,49 +2708,139 @@ function renderActiveFiltersBar() {
       <span class="filter-chip chip-chart" title="Incluindo registros não mapeados na ANVISA nos gráficos">
         <span class="filter-chip-scope">Gráficos</span>
         <span>Não Mapeados: <strong>Exibidos</strong></span>
-        <button class="chip-close" onclick="clearChartFilter('includeUnmapped')" title="Ocultar registros não mapeados">×</button>
+        <button class="chip-close" onclick="clearChartFilter('includeUnmapped')" title="Ocultar registros não mapeados">&times;</button>
       </span>
     `);
   }
 
-  // 3. Table Filter Chips (Amber)
-  if (drilldownState.tarja) {
+  if (chartFilters.sortBy && chartFilters.sortBy !== 'volume_desc') {
+    const sortLabels = {
+      'volume_asc': 'Menor Volume Primeiro',
+      'nome_asc': 'Ordem A-Z',
+      'nome_desc': 'Ordem Z-A'
+    };
     chips.push(`
-      <span class="filter-chip chip-table" title="Filtro de tarja aplicado à tabela">
-        <span class="filter-chip-scope">Tabela</span>
-        <span>Tarja: <strong>${escapeHtml(drilldownState.tarja)}</strong></span>
-        <button class="chip-close" onclick="clearTableFilter('tarja')" title="Remover filtro de tarja da tabela">×</button>
+      <span class="filter-chip chip-chart" title="Critério de ordenação aplicado aos gráficos">
+        <span class="filter-chip-scope">Gráficos</span>
+        <span>Ordenação: <strong>${sortLabels[chartFilters.sortBy] || chartFilters.sortBy}</strong></span>
+        <button class="chip-close" onclick="selectChartSort('volume_desc')" title="Restaurar ordenação padrão dos gráficos">&times;</button>
       </span>
     `);
   }
 
-  if (drilldownState.tipo) {
-    const tipoLabel = drilldownState.tipo === 'NACIONAL' ? 'Nacional' : 'Importado';
+  // 2. Multi-Select and Specific Filter Chips
+  const groupScopes = {
+    empresa: 'Empresa',
+    fabrica: 'Fábrica',
+    substancia: 'Substância',
+    classe: 'Classe Terapêutica',
+    uf: 'UF',
+    pais: 'País',
+    modelo: 'Modelo Produtivo',
+    segment: 'Segmento',
+    origem: 'Origem',
+    forma: 'Forma Farmacêutica',
+    embalagem: 'Embalagem Primária',
+    tarja: 'Tarja Sanitária',
+    faixa_preco: 'Preço Teto',
+    faixa_qtd: 'Qtd Remédios'
+  };
+
+  const activeMenuItems = [];
+
+  Object.keys(groupScopes).forEach(grp => {
+    if (activeFilters[grp] && activeFilters[grp].size > 0) {
+      activeFilters[grp].forEach(val => {
+        const valLabel = (FILTER_LABELS[grp] && FILTER_LABELS[grp][val]) || val;
+        chips.push(`
+          <span class="filter-chip chip-chart" title="Filtro por ${escapeHtml(groupScopes[grp])}: ${escapeHtml(valLabel)}">
+            <span class="filter-chip-scope">Filtro por ${escapeHtml(groupScopes[grp])}</span>
+            <span><strong>${escapeHtml(valLabel)}</strong></span>
+            <button class="chip-close" onclick="clearFilterValue('${grp}', '${escapeHtml(val)}')" title="Remover este filtro">&times;</button>
+          </span>
+        `);
+        activeMenuItems.push({
+          grp: grp,
+          val: val,
+          scopeLabel: groupScopes[grp],
+          valLabel: valLabel
+        });
+      });
+    }
+  });
+
+  // 3. Fallback for legacy single-value global filter if active
+  if (drilldownState.filterType && drilldownState.filterVal && (!activeFilters[drilldownState.filterType] || !activeFilters[drilldownState.filterType].has(drilldownState.filterVal))) {
+    const typeLabel = groupScopes[drilldownState.filterType] || drilldownState.filterType.toUpperCase();
     chips.push(`
-      <span class="filter-chip chip-table" title="Filtro de origem fabril aplicado à tabela">
-        <span class="filter-chip-scope">Tabela</span>
-        <span>Origem: <strong>${escapeHtml(tipoLabel)}</strong></span>
-        <button class="chip-close" onclick="clearTableFilter('tipo')" title="Remover filtro de origem da tabela">×</button>
+      <span class="filter-chip chip-global" title="Filtro por ${escapeHtml(typeLabel)}: ${escapeHtml(drilldownState.filterVal)}">
+        <span class="filter-chip-scope">Filtro por ${escapeHtml(typeLabel)}</span>
+        <span><strong>${escapeHtml(drilldownState.filterVal)}</strong></span>
+        <button class="chip-close" onclick="clearGlobalFilter()" title="Remover este filtro">&times;</button>
       </span>
     `);
+    activeMenuItems.push({
+      grp: drilldownState.filterType,
+      val: drilldownState.filterVal,
+      scopeLabel: typeLabel,
+      valLabel: drilldownState.filterVal
+    });
   }
 
+  // 4. Text search chip
   if (drilldownState.q) {
     chips.push(`
       <span class="filter-chip chip-table" title="Busca textual na tabela">
         <span class="filter-chip-scope">Tabela</span>
         <span>Busca: <strong>"${escapeHtml(drilldownState.q)}"</strong></span>
-        <button class="chip-close" onclick="clearTableFilter('q')" title="Limpar busca textual">×</button>
+        <button class="chip-close" onclick="clearTableFilter('q')" title="Limpar busca textual">&times;</button>
       </span>
     `);
   }
 
+  // Update chips container
   if (chips.length > 0) {
     container.innerHTML = chips.join('');
     if (btnClearAll) btnClearAll.style.display = 'inline-block';
   } else {
-    container.innerHTML = `<span class="no-filter-text">Nenhum filtro aplicado. Clique em barras/fatias/nós dos gráficos ou utilize os seletores de cada seção.</span>`;
+    container.innerHTML = `<span class="no-filter-text">Nenhum filtro aplicado. Selecione opções nos menus de filtros acima ou clique em barras/fatias/nós dos gráficos para filtrar instantaneamente.</span>`;
     if (btnClearAll) btnClearAll.style.display = 'none';
+  }
+
+  // 5. Update Dynamic Filter Lists inside both Menus
+  const chartActiveBox = document.getElementById('chart-menu-active-filters-box');
+  const chartActiveList = document.getElementById('chart-menu-active-filters-list');
+  const tableActiveBox = document.getElementById('table-menu-active-filters-box');
+  const tableActiveList = document.getElementById('table-menu-active-filters-list');
+
+  if (activeMenuItems.length > 0) {
+    const menuHtml = activeMenuItems.map(item => `
+      <div class="active-filter-menu-item" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; background:rgba(255,255,255,0.95); border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:11px; margin-bottom:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;" title="Filtro por ${escapeHtml(item.scopeLabel)}: ${escapeHtml(item.valLabel)}">
+          <span style="font-weight:700; color:var(--primary);">Filtro por ${escapeHtml(item.scopeLabel)}:</span>
+          <strong style="color:var(--text-dark); margin-left:3px;">${escapeHtml(item.valLabel)}</strong>
+        </span>
+        <button type="button" class="btn-remove-filter-menu" onclick="clearFilterValue('${item.grp}', '${escapeHtml(item.val)}')" title="Remover filtro" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; font-weight:bold; font-size:13px; border-radius:4px; cursor:pointer; padding:1px 6px; line-height:1.2;">&times;</button>
+      </div>
+    `).join('');
+
+    if (chartActiveBox && chartActiveList) {
+      chartActiveBox.style.display = 'block';
+      chartActiveList.innerHTML = menuHtml;
+    }
+    if (tableActiveBox && tableActiveList) {
+      tableActiveBox.style.display = 'block';
+      tableActiveList.innerHTML = menuHtml;
+    }
+  } else {
+    if (chartActiveBox && chartActiveList) {
+      chartActiveBox.style.display = 'none';
+      chartActiveList.innerHTML = '';
+    }
+    if (tableActiveBox && tableActiveList) {
+      tableActiveBox.style.display = 'none';
+      tableActiveList.innerHTML = '';
+    }
   }
 }
 
@@ -2252,85 +2852,102 @@ function clearGlobalFilter() {
   setElemText('drilldown-heading', 'Exibindo todos os dados do catálogo');
   setElemText('drilldown-subheading', 'Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.');
   renderActiveFiltersBar();
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
   loadDrilldown();
 }
 
-function toggleChartFilterMenu() {
-  const popover = document.getElementById('chart-filters-popover');
-  const btn = document.getElementById('btn-chart-filters-toggle');
-  if (!popover) return;
-  const isOpen = popover.classList.contains('open');
-  if (isOpen) {
-    popover.classList.remove('open');
-    if (btn) btn.classList.remove('open');
-  } else {
-    popover.classList.add('open');
-    if (btn) btn.classList.add('open');
-  }
-}
-window.toggleChartFilterMenu = toggleChartFilterMenu;
-
 function updateChartFilterBadge() {
-  const badge = document.getElementById('chart-filter-count-badge');
-  if (!badge) return;
-  let count = 0;
-  if (chartFilters.segment && chartFilters.segment !== 'all') count++;
-  if (chartFilters.origem && chartFilters.origem !== 'all') count++;
-  if (chartFilters.topN && String(chartFilters.topN) !== '10') count++;
-  if (chartFilters.includeUnmapped) count++;
-
-  if (count > 0) {
-    badge.innerText = count;
-    badge.style.display = 'inline-block';
-  } else {
-    badge.style.display = 'none';
-  }
+  updateFilterBadges();
 }
 
-function syncChartFilterButtons() {
-  ['segment', 'origem', 'topn'].forEach(grp => {
-    const container = document.getElementById(`toggle-group-${grp}`);
-    if (container) {
-      const curVal = grp === 'topn' ? String(chartFilters.topN) : (grp === 'segment' ? chartFilters.segment : chartFilters.origem);
-      container.querySelectorAll('.toggle-btn').forEach(btn => {
-        const val = btn.getAttribute('data-val');
-        btn.classList.toggle('active', val === curVal);
-      });
-    }
-  });
-  updateChartFilterBadge();
+function syncChartHoverUI() {
+  const containerTopN = document.getElementById('hover-list-chart-topn');
+  if (containerTopN) {
+    containerTopN.querySelectorAll('.hover-option-item').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-val') === String(chartFilters.topN));
+    });
+  }
+
+  const sortContainer = document.getElementById('hover-list-chart-sort');
+  if (sortContainer) {
+    sortContainer.querySelectorAll('.hover-option-item').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-val') === chartFilters.sortBy);
+    });
+  }
+
+  const chkSync = document.getElementById('sync-chart-with-table');
+  if (chkSync) chkSync.checked = !!chartFilters.syncWithTable;
+
+  syncAllCheckboxInputs();
+  updateFilterBadges();
 }
 
-function toggleChartFilterOption(filterName, value) {
-  let newVal = value;
-  // Toggle: If currently selected, toggle off to 'all' (or 10 for topN)
-  if (filterName === 'topN') {
-    if (String(chartFilters.topN) === String(value)) {
-      newVal = 10;
-    }
+function selectChartFilter(key, val) {
+  if (key === 'topN') {
+    let newVal = val;
+    if (String(chartFilters.topN) === String(val)) newVal = 10;
+    chartFilters.topN = newVal;
+    const selTop = document.getElementById('chart-filter-topn');
+    if (selTop) selTop.value = String(newVal);
   } else {
-    if (chartFilters[filterName] === value) {
-      newVal = 'all';
+    const grp = key;
+    if (activeFilters[grp]) {
+      if (val === 'all') {
+        activeFilters[grp].clear();
+      } else {
+        if (activeFilters[grp].has(val)) {
+          activeFilters[grp].delete(val);
+        } else {
+          activeFilters[grp].add(val);
+        }
+      }
     }
+    syncLegacyFilterState();
   }
-  chartFilters[filterName] = newVal;
 
-  // Sync fallback select
-  const selId = filterName === 'topN' ? 'chart-filter-topn' : (filterName === 'segment' ? 'chart-filter-segment' : 'chart-filter-origem');
-  const sel = document.getElementById(selId);
-  if (sel) sel.value = String(newVal);
+  syncChartHoverUI();
+  syncTableHoverUI();
+  renderActiveFiltersBar();
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  drilldownState.page = 1;
+  loadDrilldown();
+}
+window.selectChartFilter = selectChartFilter;
 
-  syncChartFilterButtons();
+function selectChartSort(sortBy) {
+  chartFilters.sortBy = sortBy;
+  const lbl = document.getElementById('chart-sort-btn-label');
+  if (lbl) {
+    const labels = {
+      'volume_desc': 'Ordenar: Maior Volume',
+      'volume_asc': 'Ordenar: Menor Volume',
+      'nome_asc': 'Ordenar: A-Z',
+      'nome_desc': 'Ordenar: Z-A'
+    };
+    lbl.innerText = labels[sortBy] || 'Ordenar Gráficos';
+  }
+  syncChartHoverUI();
   renderActiveFiltersBar();
   loadCharts();
 }
-window.toggleChartFilterOption = toggleChartFilterOption;
+window.selectChartSort = selectChartSort;
+
+function toggleSyncChartTable(checked) {
+  chartFilters.syncWithTable = !!checked;
+}
+window.toggleSyncChartTable = toggleSyncChartTable;
 
 function resetChartFilters() {
+  ['segment', 'forma', 'embalagem', 'origem', 'tarja'].forEach(k => {
+    if (activeFilters[k]) activeFilters[k].clear();
+  });
   chartFilters.segment = 'all';
   chartFilters.origem = 'all';
   chartFilters.topN = 10;
   chartFilters.includeUnmapped = false;
+  chartFilters.sortBy = 'volume_desc';
   includeUnmapped = false;
 
   const selSeg = document.getElementById('chart-filter-segment');
@@ -2342,13 +2959,24 @@ function resetChartFilters() {
   const chkUnm = document.getElementById('toggle-unmapped');
   if (chkUnm) chkUnm.checked = false;
 
-  syncChartFilterButtons();
+  const lbl = document.getElementById('chart-sort-btn-label');
+  if (lbl) lbl.innerText = 'Ordenar Gráficos';
+
+  syncLegacyFilterState();
+  syncChartHoverUI();
+  syncTableHoverUI();
   renderActiveFiltersBar();
   loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  drilldownState.page = 1;
+  loadDrilldown();
 }
 window.resetChartFilters = resetChartFilters;
 
 function clearChartFilter(key) {
+  if (activeFilters[key]) {
+    activeFilters[key].clear();
+  }
   if (key === 'segment') {
     chartFilters.segment = 'all';
     const sel = document.getElementById('chart-filter-segment');
@@ -2367,139 +2995,249 @@ function clearChartFilter(key) {
     const chk = document.getElementById('toggle-unmapped');
     if (chk) chk.checked = false;
   }
-  syncChartFilterButtons();
+
+  syncLegacyFilterState();
+  syncChartHoverUI();
+  syncTableHoverUI();
   renderActiveFiltersBar();
   loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  drilldownState.page = 1;
+  loadDrilldown();
 }
 
 function setChartFilter(key, val) {
-  chartFilters[key] = val;
-  syncChartFilterButtons();
+  selectChartFilter(key, val);
+}
+
+function updateTableFilterBadge() {
+  updateFilterBadges();
+}
+
+function syncTableHoverUI() {
+  const sortContainer = document.getElementById('hover-list-table-sort');
+  if (sortContainer) {
+    sortContainer.querySelectorAll('.hover-option-item').forEach(btn => {
+      const col = btn.getAttribute('data-col');
+      const ord = btn.getAttribute('data-ord');
+      btn.classList.toggle('active', col === drilldownState.sortBy && ord === drilldownState.sortOrder);
+    });
+  }
+
+  const selTarja = document.getElementById('table-filter-tarja');
+  if (selTarja) selTarja.value = drilldownState.tarja || '';
+  const selTipo = document.getElementById('table-filter-tipo');
+  if (selTipo) selTipo.value = drilldownState.tipo || '';
+
+  syncAllCheckboxInputs();
+  updateFilterBadges();
+}
+
+function selectTableFilter(key, val) {
+  let grp = key;
+  if (key === 'segmento') grp = 'segment';
+  if (key === 'tipo') {
+    grp = 'origem';
+    if (val === 'NACIONAL') val = 'nacional';
+    if (val === 'INTERNACIONAL') val = 'importado';
+  }
+
+  if (activeFilters[grp]) {
+    if (!val) {
+      activeFilters[grp].clear();
+    } else {
+      if (activeFilters[grp].has(val)) {
+        activeFilters[grp].delete(val);
+      } else {
+        activeFilters[grp].add(val);
+      }
+    }
+    syncLegacyFilterState();
+  } else {
+    drilldownState[key] = (drilldownState[key] === val && val !== '') ? '' : val;
+  }
+
+  syncChartHoverUI();
+  syncTableHoverUI();
   renderActiveFiltersBar();
   loadCharts();
-}
-
-function syncTableFilterButtons() {
-  const preta = document.getElementById('toggle-table-tarja-preta');
-  if (preta) preta.classList.toggle('active', drilldownState.tarja === 'Tarja Preta');
-  const verm = document.getElementById('toggle-table-tarja-vermelha');
-  if (verm) verm.classList.toggle('active', drilldownState.tarja === 'Tarja Vermelha');
-  const mip = document.getElementById('toggle-table-tarja-mip');
-  if (mip) mip.classList.toggle('active', drilldownState.tarja === 'Isento de Prescrição (MIP)');
-
-  const nac = document.getElementById('toggle-table-tipo-nac');
-  if (nac) nac.classList.toggle('active', drilldownState.tipo === 'NACIONAL');
-  const imp = document.getElementById('toggle-table-tipo-imp');
-  if (imp) imp.classList.toggle('active', drilldownState.tipo === 'INTERNACIONAL');
-}
-
-function toggleTableFilterOption(key, val) {
-  // Toggle: If currently selected, toggle off!
-  if (drilldownState[key] === val) {
-    drilldownState[key] = '';
-  } else {
-    drilldownState[key] = val;
-  }
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
   drilldownState.page = 1;
-
-  syncTableFilterButtons();
-  const sel = document.getElementById(`table-filter-${key}`);
-  if (sel) sel.value = drilldownState[key];
-
-  renderActiveFiltersBar();
   loadDrilldown();
 }
-window.toggleTableFilterOption = toggleTableFilterOption;
-
-function clearTableFilter(key) {
-  if (key === 'tarja') {
-    drilldownState.tarja = '';
-    const sel = document.getElementById('table-filter-tarja');
-    if (sel) sel.value = '';
-  } else if (key === 'tipo') {
-    drilldownState.tipo = '';
-    const sel = document.getElementById('table-filter-tipo');
-    if (sel) sel.value = '';
-  } else if (key === 'q') {
-    drilldownState.q = '';
-    const inp = document.getElementById('drilldown-search-input');
-    if (inp) inp.value = '';
-  }
-  drilldownState.page = 1;
-  syncTableFilterButtons();
-  renderActiveFiltersBar();
-  loadDrilldown();
-}
+window.selectTableFilter = selectTableFilter;
 
 function setTableFilter(key, val) {
-  drilldownState[key] = val;
+  selectTableFilter(key, val);
+}
+window.setTableFilter = setTableFilter;
+
+window.toggleChartFilterMenu = function() {
+  const d = document.getElementById('dropdown-hover-chart-filters');
+  if (d) d.classList.toggle('open');
+};
+window.toggleChartFilterOption = function(key, val) {
+  selectChartFilter(key, val);
+};
+window.toggleTableFilterOption = function(key, val) {
+  selectTableFilter(key, val);
+};
+
+function selectTableSort(col, ord) {
+  drilldownState.sortBy = col;
+  drilldownState.sortOrder = ord;
   drilldownState.page = 1;
-  syncTableFilterButtons();
-  renderActiveFiltersBar();
+
+  const lbl = document.getElementById('table-sort-btn-label');
+  if (lbl) {
+    const colLabels = {
+      'total_meds': 'Ordenar: Quantidade ' + (ord === 'desc' ? 'Maior' : 'Menor'),
+      'produto': 'Ordenar: Nome ' + (ord === 'asc' ? 'A-Z' : 'Z-A'),
+      'pf_18': 'Ordenar: Preço ' + (ord === 'desc' ? 'Maior' : 'Menor'),
+      'tarja': 'Ordenar: Tarja',
+      'pais': 'Ordenar: País',
+      'capital_social': 'Ordenar: Capital Social'
+    };
+    lbl.innerText = colLabels[col] || 'Ordenar Tabela';
+  }
+
+  syncTableHoverUI();
   loadDrilldown();
 }
+window.selectTableSort = selectTableSort;
+
+function clearTableFilter(key) {
+  let grp = key;
+  if (key === 'segmento') grp = 'segment';
+  if (key === 'tipo') grp = 'origem';
+
+  if (activeFilters[grp]) {
+    activeFilters[grp].clear();
+    syncLegacyFilterState();
+  } else {
+    drilldownState[key] = '';
+  }
+
+  drilldownState.page = 1;
+  syncChartHoverUI();
+  syncTableHoverUI();
+  renderActiveFiltersBar();
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  loadDrilldown();
+}
+
+function clearAllTableFilters() {
+  Object.keys(activeFilters).forEach(k => activeFilters[k].clear());
+  syncLegacyFilterState();
+  drilldownState.q = '';
+  drilldownState.page = 1;
+
+  const inp = document.getElementById('drilldown-search-input');
+  if (inp) inp.value = '';
+
+  syncChartHoverUI();
+  syncTableHoverUI();
+  renderActiveFiltersBar();
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
+  loadDrilldown();
+}
+window.clearAllTableFilters = clearAllTableFilters;
 
 function clearAllFilters() {
   drilldownState.filterType = '';
   drilldownState.filterVal = '';
   drilldownState.q = '';
-  drilldownState.tarja = '';
-  drilldownState.tipo = '';
   drilldownState.page = 1;
+
+  Object.keys(activeFilters).forEach(k => activeFilters[k].clear());
+  syncLegacyFilterState();
 
   chartFilters.segment = 'all';
   chartFilters.origem = 'all';
   chartFilters.topN = 10;
   chartFilters.includeUnmapped = false;
+  chartFilters.sortBy = 'volume_desc';
+  chartFilters.syncWithTable = false;
   includeUnmapped = false;
 
   const inp = document.getElementById('drilldown-search-input');
   if (inp) inp.value = '';
-  const selTarja = document.getElementById('table-filter-tarja');
-  if (selTarja) selTarja.value = '';
-  const selTipo = document.getElementById('table-filter-tipo');
-  if (selTipo) selTipo.value = '';
-  const selSeg = document.getElementById('chart-filter-segment');
-  if (selSeg) selSeg.value = 'all';
-  const selOrig = document.getElementById('chart-filter-origem');
-  if (selOrig) selOrig.value = 'all';
-  const selTop = document.getElementById('chart-filter-topn');
-  if (selTop) selTop.value = '10';
-  const chkUnm = document.getElementById('toggle-unmapped');
-  if (chkUnm) chkUnm.checked = false;
 
   setElemText('drilldown-badge', 'Detalhamento Dinâmico');
   setElemText('drilldown-heading', 'Exibindo todos os dados do catálogo');
   setElemText('drilldown-subheading', 'Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.');
 
-  syncChartFilterButtons();
-  syncTableFilterButtons();
+  syncChartHoverUI();
+  syncTableHoverUI();
   renderActiveFiltersBar();
   loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
   loadDrilldown();
 }
 
 function triggerDrilldown(filterType, filterVal) {
-  // Toggle: If clicking the exact same filter already active, toggle it OFF!
-  if (drilldownState.filterType === filterType && drilldownState.filterVal === filterVal) {
-    clearGlobalFilter();
-    return;
+  if (!filterType || !filterVal) return;
+
+  const typeToGroup = {
+    'empresa': 'empresa',
+    'detentora': 'empresa',
+    'fabrica': 'fabrica',
+    'planta': 'fabrica',
+    'substancia': 'substancia',
+    'molecula': 'substancia',
+    'classe': 'classe',
+    'uf': 'uf',
+    'pais': 'pais',
+    'modelo': 'modelo',
+    'tipo_fabricante': 'modelo',
+    'segment': 'segment',
+    'segmento': 'segment',
+    'origem': 'origem',
+    'forma': 'forma',
+    'embalagem': 'embalagem',
+    'tarja': 'tarja',
+    'faixa_preco': 'faixa_preco',
+    'faixa_qtd': 'faixa_qtd'
+  };
+  const grp = typeToGroup[filterType] || filterType;
+
+  if (activeFilters[grp]) {
+    if (activeFilters[grp].has(filterVal)) {
+      activeFilters[grp].delete(filterVal);
+    } else {
+      activeFilters[grp].add(filterVal);
+    }
   }
 
-  drilldownState.filterType = filterType;
-  drilldownState.filterVal = filterVal;
+  // Clear single-value global filter state so multi-select sets take priority
+  drilldownState.filterType = '';
+  drilldownState.filterVal = '';
   drilldownState.page = 1;
   drilldownState.q = '';
 
   const searchInput = document.getElementById('drilldown-search-input');
   if (searchInput) searchInput.value = '';
 
-  const badgeText = `Filtro Ativo: ${filterType.toUpperCase()} = ${filterVal}`;
-  setElemText('drilldown-badge', badgeText);
-  setElemText('drilldown-heading', `Detalhamento: ${filterVal}`);
-  setElemText('drilldown-subheading', `Mostrando entidades vinculadas ao critério selecionado no gráfico. Alterne entre Remédios, Fábricas ou Detentoras.`);
+  let totalActive = 0;
+  Object.keys(activeFilters).forEach(k => { totalActive += activeFilters[k].size; });
+  if (totalActive > 0) {
+    setElemText('drilldown-badge', `Filtros Ativos (${totalActive})`);
+    setElemText('drilldown-heading', `Detalhamento Filtrado (${totalActive} filtros ativos)`);
+    setElemText('drilldown-subheading', 'Mostrando entidades vinculadas aos critérios selecionados. Alterne entre Remédios, Fábricas ou Detentoras.');
+  } else {
+    setElemText('drilldown-badge', 'Detalhamento Dinâmico');
+    setElemText('drilldown-heading', 'Exibindo todos os dados do catálogo');
+    setElemText('drilldown-subheading', 'Clique em qualquer barra, fatia ou nó dos gráficos acima para filtrar os dados instantaneamente.');
+  }
 
+  syncLegacyFilterState();
+  syncAllCheckboxInputs();
+  updateFilterBadges();
   renderActiveFiltersBar();
+  loadCharts();
+  if (typeof initSankeyGraph === 'function') initSankeyGraph();
   loadDrilldown();
 
   // Smooth scroll to drilldown card and highlight table
@@ -2516,16 +3254,20 @@ function resetDrilldown() {
   clearGlobalFilter();
 }
 
-// Click outside popover listener
+// Touch / Mobile Dropdown Toggle Support
 document.addEventListener('click', (e) => {
-  const popover = document.getElementById('chart-filters-popover');
-  const wrapper = document.getElementById('chart-filter-menu-wrapper');
-  if (popover && wrapper && popover.classList.contains('open')) {
-    if (!wrapper.contains(e.target)) {
-      popover.classList.remove('open');
-      const btn = document.getElementById('btn-chart-filters-toggle');
-      if (btn) btn.classList.remove('open');
+  const clickedBtn = e.target.closest('.hover-dropdown-btn');
+  if (clickedBtn) {
+    const parentDropdown = clickedBtn.closest('.hover-dropdown');
+    if (parentDropdown) {
+      const isOpen = parentDropdown.classList.contains('open');
+      document.querySelectorAll('.hover-dropdown.open').forEach(d => {
+        if (d !== parentDropdown) d.classList.remove('open');
+      });
+      parentDropdown.classList.toggle('open', !isOpen);
     }
+  } else if (!e.target.closest('.hover-dropdown-menu')) {
+    document.querySelectorAll('.hover-dropdown.open').forEach(d => d.classList.remove('open'));
   }
 });
 
@@ -2578,8 +3320,20 @@ async function loadDrilldown() {
       filter_val: drilldownState.filterVal,
       entity_type: drilldownState.entityType,
       q: drilldownState.q,
-      tarja: drilldownState.tarja,
-      tipo: drilldownState.tipo,
+      tarja: activeFilters.tarja.size > 0 ? Array.from(activeFilters.tarja).join(',') : (drilldownState.tarja || ''),
+      tipo: activeFilters.origem.size > 0 ? Array.from(activeFilters.origem).map(o => o === 'nacional' ? 'NACIONAL' : 'INTERNACIONAL').join(',') : (drilldownState.tipo || ''),
+      segmento: activeFilters.segment.size > 0 ? Array.from(activeFilters.segment).join(',') : (drilldownState.segmento || ''),
+      embalagem: activeFilters.embalagem.size > 0 ? Array.from(activeFilters.embalagem).join(',') : (drilldownState.embalagem || ''),
+      forma: activeFilters.forma.size > 0 ? Array.from(activeFilters.forma).join(',') : (drilldownState.forma || ''),
+      faixa_preco: activeFilters.faixa_preco.size > 0 ? Array.from(activeFilters.faixa_preco).join(',') : (drilldownState.faixa_preco || ''),
+      faixa_qtd: activeFilters.faixa_qtd.size > 0 ? Array.from(activeFilters.faixa_qtd).join(',') : (drilldownState.faixa_qtd || ''),
+      empresa: activeFilters.empresa.size > 0 ? Array.from(activeFilters.empresa).join(',') : '',
+      fabrica: activeFilters.fabrica.size > 0 ? Array.from(activeFilters.fabrica).join(',') : '',
+      substancia: activeFilters.substancia.size > 0 ? Array.from(activeFilters.substancia).join(',') : '',
+      classe: activeFilters.classe.size > 0 ? Array.from(activeFilters.classe).join(',') : '',
+      uf: activeFilters.uf.size > 0 ? Array.from(activeFilters.uf).join(',') : '',
+      pais: activeFilters.pais.size > 0 ? Array.from(activeFilters.pais).join(',') : '',
+      modelo: activeFilters.modelo.size > 0 ? Array.from(activeFilters.modelo).join(',') : '',
       sort_by: drilldownState.sortBy,
       sort_order: drilldownState.sortOrder,
       page: drilldownState.page,
@@ -2854,6 +3608,9 @@ async function loadMedicamentos() {
       pais: currentFilters.pais,
       tipo: currentFilters.tipo,
       tarja: currentFilters.tarja,
+      forma: currentFilters.forma || '',
+      embalagem: currentFilters.embalagem || '',
+      segmento: currentFilters.segmento || '',
       sort_by: currentFilters.sortBy,
       sort_order: currentFilters.sortOrder
     });
@@ -3420,6 +4177,33 @@ function initSearchAndFilters() {
     currentPage = 1;
     loadMedicamentos();
   });
+
+  const filterSeg = document.getElementById('filter-segmento');
+  if (filterSeg) {
+    filterSeg.addEventListener('change', (e) => {
+      currentFilters.segmento = e.target.value;
+      currentPage = 1;
+      loadMedicamentos();
+    });
+  }
+
+  const filterEmb = document.getElementById('filter-embalagem');
+  if (filterEmb) {
+    filterEmb.addEventListener('change', (e) => {
+      currentFilters.embalagem = e.target.value;
+      currentPage = 1;
+      loadMedicamentos();
+    });
+  }
+
+  const filterForma = document.getElementById('filter-forma');
+  if (filterForma) {
+    filterForma.addEventListener('change', (e) => {
+      currentFilters.forma = e.target.value;
+      currentPage = 1;
+      loadMedicamentos();
+    });
+  }
 
   document.getElementById('btn-prev').addEventListener('click', () => {
     if (currentPage > 1) {

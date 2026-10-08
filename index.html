@@ -193,57 +193,220 @@
         <!-- Overview Control Toolbar: Toggle Unmapped + Chart Filters + Help Info -->
         <div class="overview-toolbar" style="flex-wrap: wrap; gap: 12px; padding: 12px 18px;">
           <div class="overview-toolbar-left" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
-            <!-- Independent Chart Filters Menu -->
-            <div class="chart-filter-menu-wrapper" id="chart-filter-menu-wrapper">
-              <button id="btn-chart-filters-toggle" class="btn-chart-filters-menu" onclick="toggleChartFilterMenu()">
+            <!-- Independent Chart Filters Hover Menu -->
+            <div class="hover-dropdown" id="dropdown-hover-chart-filters">
+              <button type="button" class="hover-dropdown-btn" id="btn-chart-filters-hover" onclick="toggleChartFilterMenu()">
+                <span id="btn-chart-filters-toggle" style="display:none;"></span>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-                <span>Menu de Filtros dos Gráficos</span>
-                <span id="chart-filter-count-badge" class="badge-count" style="display:none; background:#059669; color:#fff; font-size:10px; border-radius:10px; padding:1px 6px; font-weight:700;">0</span>
-                <span style="font-size: 10px;">▼</span>
+                <span>Filtros dos Gráficos</span>
+                <span id="chart-filter-count-badge" class="hover-badge" style="display:none;">0</span>
+                <span class="hover-caret">▼</span>
               </button>
 
-              <div id="chart-filters-popover" class="chart-filters-popover">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
-                  <strong style="font-size: 13px; color: var(--text-dark);">Filtros Exclusivos dos Gráficos</strong>
-                  <button type="button" class="btn-sm btn-secondary" onclick="toggleChartFilterMenu()" style="padding: 2px 8px; font-size: 11px;">Fechar </button>
+              <div class="hover-dropdown-menu" id="chart-filters-popover" style="min-width: 320px;">
+                <div class="hover-menu-header">
+                  <span>Filtros de Exibição dos Gráficos</span>
+                  <button type="button" class="hover-clear-btn" onclick="resetChartFilters()">Restaurar</button>
                 </div>
 
-                <!-- Segmento Toggle Options -->
-                <div class="chart-filter-group">
-                  <div class="chart-filter-group-title">Segmento Regulatório (Clique para alternar)</div>
-                  <div class="toggle-group" id="toggle-group-segment">
-                    <button type="button" class="toggle-btn active" data-val="all" onclick="toggleChartFilterOption('segment', 'all')">Todos</button>
-                    <button type="button" class="toggle-btn" data-val="sinteticos" onclick="toggleChartFilterOption('segment', 'sinteticos')">Sintéticos / Genéricos / Similares</button>
-                    <button type="button" class="toggle-btn" data-val="biologicos" onclick="toggleChartFilterOption('segment', 'biologicos')">Biológicos</button>
-                    <button type="button" class="toggle-btn" data-val="fitoterapicos" onclick="toggleChartFilterOption('segment', 'fitoterapicos')">Fitoterápicos</button>
-                    <button type="button" class="toggle-btn" data-val="dinamizados" onclick="toggleChartFilterOption('segment', 'dinamizados')">Dinamizados</button>
+                <div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
+                  <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-dark);">
+                    <input type="checkbox" id="sync-chart-with-table" onchange="toggleSyncChartTable(this.checked)">
+                    <span>Sincronizar filtros com a tabela abaixo</span>
+                  </label>
+                </div>
+
+                <!-- Lista Dinamica de Filtros Ativos no Menu dos Graficos -->
+                <div id="chart-menu-active-filters-box" style="display:none; margin-bottom: 12px; padding: 10px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px;">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--text-dark); margin-bottom: 6px;">Filtros Ativos (Clique para Desmarcar):</div>
+                  <div id="chart-menu-active-filters-list" style="display: flex; flex-direction: column; gap: 4px;"></div>
+                </div>
+
+                <!-- Segmento com Toggles (Checkboxes) -->
+                <div class="hover-group-subbar">
+                  <span class="hover-section-title" style="margin:0;">Segmento / Categoria</span>
+                  <div>
+                    <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('segment', true)">Todos</button>
+                    <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('segment', false)">Limpar</button>
                   </div>
                 </div>
-
-                <!-- Origem Fabril Toggle Options -->
-                <div class="chart-filter-group">
-                  <div class="chart-filter-group-title">Origem Fabril (Clique para alternar)</div>
-                  <div class="toggle-group" id="toggle-group-origem">
-                    <button type="button" class="toggle-btn active" data-val="all" onclick="toggleChartFilterOption('origem', 'all')">Todas as Origens</button>
-                    <button type="button" class="toggle-btn" data-val="nacional" onclick="toggleChartFilterOption('origem', 'nacional')">Apenas Nacional</button>
-                    <button type="button" class="toggle-btn" data-val="importado" onclick="toggleChartFilterOption('origem', 'importado')">Apenas Importados</button>
-                  </div>
+                <div class="hover-options-list" id="hover-list-chart-segment">
+                  <span id="toggle-group-segment" style="display:none;"></span>
+                  <label class="hover-toggle-item hover-option-item" data-val="sinteticos">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="sinteticos" onchange="onToggleFilterChange('segment', 'sinteticos', this.checked)">
+                    <span>Sintéticos em Geral</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="genericos">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="genericos" onchange="onToggleFilterChange('segment', 'genericos', this.checked)">
+                    <span>Genéricos</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="similares">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="similares" onchange="onToggleFilterChange('segment', 'similares', this.checked)">
+                    <span>Similares</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="novos">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="novos" onchange="onToggleFilterChange('segment', 'novos', this.checked)">
+                    <span>Novos / Referência</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="biologicos">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="biologicos" onchange="onToggleFilterChange('segment', 'biologicos', this.checked)">
+                    <span>Biológicos</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="especificos">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="especificos" onchange="onToggleFilterChange('segment', 'especificos', this.checked)">
+                    <span>Específicos</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="fitoterapicos">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="fitoterapicos" onchange="onToggleFilterChange('segment', 'fitoterapicos', this.checked)">
+                    <span>Fitoterápicos</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="dinamizados">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="dinamizados" onchange="onToggleFilterChange('segment', 'dinamizados', this.checked)">
+                    <span>Dinamizados</span>
+                  </label>
                 </div>
 
-                <!-- Corte Top N Toggle Options -->
-                <div class="chart-filter-group">
-                  <div class="chart-filter-group-title">Corte de Entidades (Top N)</div>
-                  <div class="toggle-group" id="toggle-group-topn">
-                    <button type="button" class="toggle-btn" data-val="5" onclick="toggleChartFilterOption('topN', '5')">Top 5</button>
-                    <button type="button" class="toggle-btn active" data-val="10" onclick="toggleChartFilterOption('topN', '10')">Top 10</button>
-                    <button type="button" class="toggle-btn" data-val="20" onclick="toggleChartFilterOption('topN', '20')">Top 20</button>
-                    <button type="button" class="toggle-btn" data-val="all" onclick="toggleChartFilterOption('topN', 'all')">Todos</button>
+                <!-- Forma Farmaceutica com Toggles (Checkboxes) -->
+                <div class="hover-group-subbar">
+                  <span class="hover-section-title" style="margin:0;">Forma Farmacêutica</span>
+                  <div>
+                    <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('forma', true)">Todas</button>
+                    <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('forma', false)">Limpar</button>
                   </div>
                 </div>
+                <div class="hover-options-list" id="hover-list-chart-forma">
+                  <label class="hover-toggle-item hover-option-item" data-val="Solida">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Solida" onchange="onToggleFilterChange('forma', 'Solida', this.checked)">
+                    <span>Sólida (Comprimido / Cápsula)</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Liquida">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Liquida" onchange="onToggleFilterChange('forma', 'Liquida', this.checked)">
+                    <span>Líquida (Xarope / Solução)</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Semi-solida">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Semi-solida" onchange="onToggleFilterChange('forma', 'Semi-solida', this.checked)">
+                    <span>Semi-sólida (Pomada / Creme)</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Injetavel">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Injetavel" onchange="onToggleFilterChange('forma', 'Injetavel', this.checked)">
+                    <span>Injetável / Solução Estéril</span>
+                  </label>
+                </div>
 
-                <!-- Action Footer -->
-                <div style="margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
-                  <button type="button" class="btn-sm btn-secondary" onclick="resetChartFilters()" style="font-size: 11px;">Restaurar Padrão dos Gráficos</button>
+                <!-- Embalagem Primaria com Toggles (Checkboxes) -->
+                <div class="hover-group-subbar">
+                  <span class="hover-section-title" style="margin:0;">Embalagem Primária</span>
+                  <div>
+                    <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('embalagem', true)">Todas</button>
+                    <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('embalagem', false)">Limpar</button>
+                  </div>
+                </div>
+                <div class="hover-options-list" id="hover-list-chart-embalagem">
+                  <label class="hover-toggle-item hover-option-item" data-val="Blister">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Blister" onchange="onToggleFilterChange('embalagem', 'Blister', this.checked)">
+                    <span>Blister</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Frasco">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Frasco" onchange="onToggleFilterChange('embalagem', 'Frasco', this.checked)">
+                    <span>Frasco</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Frasco-Ampola">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Frasco-Ampola" onchange="onToggleFilterChange('embalagem', 'Frasco-Ampola', this.checked)">
+                    <span>Frasco-Ampola</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Bisnaga">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Bisnaga" onchange="onToggleFilterChange('embalagem', 'Bisnaga', this.checked)">
+                    <span>Bisnaga</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Sachê">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Sachê" onchange="onToggleFilterChange('embalagem', 'Sachê', this.checked)">
+                    <span>Sachê</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Ampola">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Ampola" onchange="onToggleFilterChange('embalagem', 'Ampola', this.checked)">
+                    <span>Ampola</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Seringa">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Seringa" onchange="onToggleFilterChange('embalagem', 'Seringa', this.checked)">
+                    <span>Seringa Preenchida</span>
+                  </label>
+                </div>
+
+                <!-- Origem Fabril com Toggles (Checkboxes) -->
+                <div class="hover-group-subbar">
+                  <span class="hover-section-title" style="margin:0;">Origem Fabril</span>
+                </div>
+                <div class="hover-options-list" id="hover-list-chart-origem">
+                  <span id="toggle-group-origem" style="display:none;"></span>
+                  <label class="hover-toggle-item hover-option-item" data-val="nacional">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="origem" value="nacional" onchange="onToggleFilterChange('origem', 'nacional', this.checked)">
+                    <span>Fabricação Nacional</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="importado">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="origem" value="importado" onchange="onToggleFilterChange('origem', 'importado', this.checked)">
+                    <span>Plantas Importadas</span>
+                  </label>
+                </div>
+
+                <!-- Tarja Sanitaria com Toggles (Checkboxes) -->
+                <div class="hover-group-subbar">
+                  <span class="hover-section-title" style="margin:0;">Tarja Sanitária</span>
+                </div>
+                <div class="hover-options-list" id="hover-list-chart-tarja">
+                  <label class="hover-toggle-item hover-option-item" data-val="Tarja Preta">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Tarja Preta" onchange="onToggleFilterChange('tarja', 'Tarja Preta', this.checked)">
+                    <span>Tarja Preta (Controle Especial)</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Tarja Vermelha">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Tarja Vermelha" onchange="onToggleFilterChange('tarja', 'Tarja Vermelha', this.checked)">
+                    <span>Tarja Vermelha</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Tarja Vermelha (Retenção de Receita)">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Tarja Vermelha (Retenção de Receita)" onchange="onToggleFilterChange('tarja', 'Tarja Vermelha (Retenção de Receita)', this.checked)">
+                    <span>Tarja Vermelha (Retenção)</span>
+                  </label>
+                  <label class="hover-toggle-item hover-option-item" data-val="Isento de Prescrição (MIP)">
+                    <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Isento de Prescrição (MIP)" onchange="onToggleFilterChange('tarja', 'Isento de Prescrição (MIP)', this.checked)">
+                    <span>MIP / Sem Tarja</span>
+                  </label>
+                </div>
+
+                <!-- Densidade Top N -->
+                <div class="hover-section-title">Densidade de Amostragem (Top N)</div>
+                <div class="hover-options-list toggle-group" id="hover-list-chart-topn">
+                  <span id="toggle-group-topn" style="display:none;"></span>
+                  <button type="button" class="hover-option-item toggle-btn" data-val="5" onclick="selectChartFilter('topN', '5')">Top 5 Maiores Entidades</button>
+                  <button type="button" class="hover-option-item toggle-btn active" data-val="10" onclick="selectChartFilter('topN', '10')">Top 10 (Padrão Executivo)</button>
+                  <button type="button" class="hover-option-item toggle-btn" data-val="20" onclick="selectChartFilter('topN', '20')">Top 20 Principais Polos</button>
+                  <button type="button" class="hover-option-item toggle-btn" data-val="all" onclick="selectChartFilter('topN', 'all')">Todos os Polos Cadastrados</button>
+                </div>
+
+                <div class="hover-menu-footer">
+                  <span style="font-size: 11px; color: var(--text-muted);">Selecione múltiplos para filtrar gráficos e tabelas</span>
+                  <button type="button" class="hover-clear-btn" onclick="resetChartFilters()">Limpar Filtros</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Independent Chart Sorting Hover Menu -->
+            <div class="hover-dropdown" id="dropdown-hover-chart-sort">
+              <button type="button" class="hover-dropdown-btn" id="btn-chart-sort-hover">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"></path></svg>
+                <span id="chart-sort-btn-label">Ordenar Gráficos</span>
+                <span class="hover-caret">▼</span>
+              </button>
+
+              <div class="hover-dropdown-menu" style="min-width: 250px;">
+                <div class="hover-menu-header">
+                  <span>Ordenação dos Gráficos</span>
+                </div>
+
+                <div class="hover-section-title">Critério de Classificação</div>
+                <div class="hover-options-list" id="hover-list-chart-sort">
+                  <button type="button" class="hover-option-item active" data-val="volume_desc" onclick="selectChartSort('volume_desc')">Maior Volume / Preço Primeiro</button>
+                  <button type="button" class="hover-option-item" data-val="volume_asc" onclick="selectChartSort('volume_asc')">Menor Volume / Preço Primeiro</button>
+                  <button type="button" class="hover-option-item" data-val="nome_asc" onclick="selectChartSort('nome_asc')">Ordem Alfabética (A - Z)</button>
+                  <button type="button" class="hover-option-item" data-val="nome_desc" onclick="selectChartSort('nome_desc')">Ordem Alfabética Reversa (Z - A)</button>
                 </div>
               </div>
             </div>
@@ -251,8 +414,12 @@
             <!-- Synced Selectors for Tests and Backward Compatibility -->
             <select id="chart-filter-segment" class="custom-select-sm" style="display:none;" onchange="setChartFilter('segment', this.value)">
               <option value="all">Todos os Segmentos</option>
-              <option value="sinteticos">Sintéticos / Genéricos / Similares</option>
+              <option value="sinteticos">Sintéticos em Geral</option>
+              <option value="genericos">Genéricos</option>
+              <option value="similares">Similares</option>
+              <option value="novos">Novos / Referência</option>
               <option value="biologicos">Biológicos</option>
+              <option value="especificos">Específicos</option>
               <option value="fitoterapicos">Fitoterápicos</option>
               <option value="dinamizados">Dinamizados</option>
             </select>
@@ -586,24 +753,275 @@
             </div>
           </div>
 
-          <!-- Drilldown Search & Sort Filter Bar -->
-          <div class="drilldown-search-bar" style="flex-wrap: wrap; gap: 10px;">
-            <div class="search-input-group" style="flex: 1; min-width: 250px;">
+          <!-- Drilldown Search, Hover Filters & Hover Sort Bar -->
+          <div class="drilldown-search-bar" style="flex-wrap: wrap; gap: 10px; align-items: center;">
+            <div class="search-input-group" style="flex: 1; min-width: 240px;">
               <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
               <input type="text" id="drilldown-search-input" placeholder="Buscar nesta seleção por medicamento, substância, detentora, fábrica...">
             </div>
 
-            <!-- Table Filter: Tarja -->
-            <select id="table-filter-tarja" class="custom-select-sm" onchange="setTableFilter('tarja', this.value)">
+            <!-- Table Filters Mega Hover Dropdown -->
+            <div class="hover-dropdown" id="dropdown-hover-table-filters">
+              <button type="button" class="hover-dropdown-btn" id="btn-table-filters-hover">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                <span>Filtros da Tabela</span>
+                <span id="table-filter-count-badge" class="hover-badge hover-badge-amber" style="display:none;">0</span>
+                <span class="hover-caret">▼</span>
+              </button>
+
+              <div class="hover-dropdown-menu hover-dropdown-mega" style="right: 0; left: auto;">
+                <!-- Lista Dinamica de Filtros Ativos no Menu da Tabela -->
+                <div id="table-menu-active-filters-box" style="display:none; grid-column: 1 / -1; margin-bottom: 12px; padding: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px;">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--text-dark); margin-bottom: 6px;">Filtros Ativos (Clique para Desmarcar):</div>
+                  <div id="table-menu-active-filters-list" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+                </div>
+
+                <!-- Column 1: Tipo & Regulação -->
+                <div>
+                  <div class="hover-menu-header">Tipo & Regulação</div>
+                  
+                  <div class="hover-group-subbar">
+                    <span class="hover-section-title" style="margin:0;">Segmento Regulatório</span>
+                    <div>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('segment', true)">Todos</button>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('segment', false)">Limpar</button>
+                    </div>
+                  </div>
+                  <div class="hover-options-list" id="hover-list-table-segmento">
+                    <label class="hover-toggle-item hover-option-item" data-val="sinteticos">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="sinteticos" onchange="onToggleFilterChange('segment', 'sinteticos', this.checked)">
+                      <span>Sintéticos em Geral</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="genericos">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="genericos" onchange="onToggleFilterChange('segment', 'genericos', this.checked)">
+                      <span>Genéricos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="similares">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="similares" onchange="onToggleFilterChange('segment', 'similares', this.checked)">
+                      <span>Similares</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="novos">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="novos" onchange="onToggleFilterChange('segment', 'novos', this.checked)">
+                      <span>Novos / Referência</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="biologicos">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="biologicos" onchange="onToggleFilterChange('segment', 'biologicos', this.checked)">
+                      <span>Biológicos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="especificos">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="especificos" onchange="onToggleFilterChange('segment', 'especificos', this.checked)">
+                      <span>Específicos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="fitoterapicos">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="fitoterapicos" onchange="onToggleFilterChange('segment', 'fitoterapicos', this.checked)">
+                      <span>Fitoterápicos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="dinamizados">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="segment" value="dinamizados" onchange="onToggleFilterChange('segment', 'dinamizados', this.checked)">
+                      <span>Dinamizados</span>
+                    </label>
+                  </div>
+
+                  <div class="hover-group-subbar">
+                    <span class="hover-section-title" style="margin:0;">Tarja Sanitária</span>
+                    <div>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('tarja', true)">Todas</button>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('tarja', false)">Limpar</button>
+                    </div>
+                  </div>
+                  <div class="hover-options-list" id="hover-list-table-tarja">
+                    <label class="hover-toggle-item hover-option-item" data-val="Tarja Preta">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Tarja Preta" onchange="onToggleFilterChange('tarja', 'Tarja Preta', this.checked)">
+                      <span>Tarja Preta (Controle Especial)</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Tarja Vermelha">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Tarja Vermelha" onchange="onToggleFilterChange('tarja', 'Tarja Vermelha', this.checked)">
+                      <span>Tarja Vermelha</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Tarja Vermelha (Retenção de Receita)">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Tarja Vermelha (Retenção de Receita)" onchange="onToggleFilterChange('tarja', 'Tarja Vermelha (Retenção de Receita)', this.checked)">
+                      <span>Tarja Vermelha (Retenção)</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Isento de Prescrição (MIP)">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="tarja" value="Isento de Prescrição (MIP)" onchange="onToggleFilterChange('tarja', 'Isento de Prescrição (MIP)', this.checked)">
+                      <span>MIP / Sem Tarja</span>
+                    </label>
+                  </div>
+
+                  <div class="hover-group-subbar">
+                    <span class="hover-section-title" style="margin:0;">Origem Fabril</span>
+                  </div>
+                  <div class="hover-options-list" id="hover-list-table-tipo">
+                    <label class="hover-toggle-item hover-option-item" data-val="NACIONAL">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="origem" value="nacional" onchange="onToggleFilterChange('origem', 'nacional', this.checked)">
+                      <span>Plantas Nacionais</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="INTERNACIONAL">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="origem" value="importado" onchange="onToggleFilterChange('origem', 'importado', this.checked)">
+                      <span>Plantas Internacionais (Importado)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Column 2: Embalagem & Forma Farmacêutica -->
+                <div>
+                  <div class="hover-menu-header">Apresentação Física</div>
+
+                  <div class="hover-group-subbar">
+                    <span class="hover-section-title" style="margin:0;">Embalagem Primária</span>
+                    <div>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('embalagem', true)">Todas</button>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('embalagem', false)">Limpar</button>
+                    </div>
+                  </div>
+                  <div class="hover-options-list" id="hover-list-table-embalagem">
+                    <label class="hover-toggle-item hover-option-item" data-val="Blister">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Blister" onchange="onToggleFilterChange('embalagem', 'Blister', this.checked)">
+                      <span>Blister</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Frasco">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Frasco" onchange="onToggleFilterChange('embalagem', 'Frasco', this.checked)">
+                      <span>Frasco</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Frasco-Ampola">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Frasco-Ampola" onchange="onToggleFilterChange('embalagem', 'Frasco-Ampola', this.checked)">
+                      <span>Frasco-Ampola</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Bisnaga">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Bisnaga" onchange="onToggleFilterChange('embalagem', 'Bisnaga', this.checked)">
+                      <span>Bisnaga</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Sachê">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Sachê" onchange="onToggleFilterChange('embalagem', 'Sachê', this.checked)">
+                      <span>Sachê</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Ampola">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Ampola" onchange="onToggleFilterChange('embalagem', 'Ampola', this.checked)">
+                      <span>Ampola</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Seringa">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="embalagem" value="Seringa" onchange="onToggleFilterChange('embalagem', 'Seringa', this.checked)">
+                      <span>Seringa Preenchida</span>
+                    </label>
+                  </div>
+
+                  <div class="hover-group-subbar">
+                    <span class="hover-section-title" style="margin:0;">Forma Farmacêutica</span>
+                    <div>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('forma', true)">Todas</button>
+                      <button type="button" class="hover-quick-btn" onclick="toggleSelectAll('forma', false)">Limpar</button>
+                    </div>
+                  </div>
+                  <div class="hover-options-list" id="hover-list-table-forma">
+                    <label class="hover-toggle-item hover-option-item" data-val="Solida">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Solida" onchange="onToggleFilterChange('forma', 'Solida', this.checked)">
+                      <span>Sólida (Comprimido / Cápsula)</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Liquida">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Liquida" onchange="onToggleFilterChange('forma', 'Liquida', this.checked)">
+                      <span>Líquida (Xarope / Solução)</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Semi-solida">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Semi-solida" onchange="onToggleFilterChange('forma', 'Semi-solida', this.checked)">
+                      <span>Semi-sólida (Pomada / Creme)</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="Injetavel">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="forma" value="Injetavel" onchange="onToggleFilterChange('forma', 'Injetavel', this.checked)">
+                      <span>Injetável / Solução Estéril</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Column 3: Faixas de Quantidade & Preço -->
+                <div>
+                  <div class="hover-menu-header">Métricas de Escala</div>
+
+                  <div class="hover-section-title">Quantidade de Medicamentos</div>
+                  <div class="hover-options-list" id="hover-list-table-faixa-qtd">
+                    <label class="hover-toggle-item hover-option-item" data-val="1a5">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_qtd" value="1a5" onchange="onToggleFilterChange('faixa_qtd', '1a5', this.checked)">
+                      <span>1 a 5 Medicamentos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="6a25">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_qtd" value="6a25" onchange="onToggleFilterChange('faixa_qtd', '6a25', this.checked)">
+                      <span>6 a 25 Medicamentos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="26a100">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_qtd" value="26a100" onchange="onToggleFilterChange('faixa_qtd', '26a100', this.checked)">
+                      <span>26 a 100 Medicamentos</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="acima100">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_qtd" value="acima100" onchange="onToggleFilterChange('faixa_qtd', 'acima100', this.checked)">
+                      <span>Mais de 100 Medicamentos</span>
+                    </label>
+                  </div>
+
+                  <div class="hover-section-title">Faixa de Preço Teto (PF 18%)</div>
+                  <div class="hover-options-list" id="hover-list-table-faixa-preco">
+                    <label class="hover-toggle-item hover-option-item" data-val="ate25">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_preco" value="ate25" onchange="onToggleFilterChange('faixa_preco', 'ate25', this.checked)">
+                      <span>Até R$ 25,00 (Populares)</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="25a100">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_preco" value="25a100" onchange="onToggleFilterChange('faixa_preco', '25a100', this.checked)">
+                      <span>R$ 25,00 a R$ 100,00</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="100a500">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_preco" value="100a500" onchange="onToggleFilterChange('faixa_preco', '100a500', this.checked)">
+                      <span>R$ 100,00 a R$ 500,00</span>
+                    </label>
+                    <label class="hover-toggle-item hover-option-item" data-val="acima500">
+                      <input type="checkbox" class="hover-toggle-cb" data-group="faixa_preco" value="acima500" onchange="onToggleFilterChange('faixa_preco', 'acima500', this.checked)">
+                      <span>Acima de R$ 500,00 (Alto Custo)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Footer spanning columns -->
+                <div class="hover-menu-footer">
+                  <span style="font-size: 11px; color: var(--text-muted);">Selecione múltiplos para filtrar gráficos e tabelas</span>
+                  <button type="button" class="hover-clear-btn" onclick="clearAllTableFilters()">Limpar Todos os Filtros da Tabela</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Sorting Hover Dropdown -->
+            <div class="hover-dropdown" id="dropdown-hover-table-sort">
+              <button type="button" class="hover-dropdown-btn" id="btn-table-sort-hover">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"></path></svg>
+                <span id="table-sort-btn-label">Ordenar Tabela</span>
+                <span class="hover-caret">▼</span>
+              </button>
+
+              <div class="hover-dropdown-menu" style="min-width: 270px; right: 0; left: auto;">
+                <div class="hover-menu-header">
+                  <span>Critério de Ordenação da Tabela</span>
+                </div>
+
+                <div class="hover-section-title">Volume & Escala</div>
+                <div class="hover-options-list" id="hover-list-table-sort">
+                  <button type="button" class="hover-option-item" data-col="total_meds" data-ord="desc" onclick="selectTableSort('total_meds', 'desc')">Quantidade de Medicamentos (Maior primeiro)</button>
+                  <button type="button" class="hover-option-item" data-col="total_meds" data-ord="asc" onclick="selectTableSort('total_meds', 'asc')">Quantidade de Medicamentos (Menor primeiro)</button>
+                  <button type="button" class="hover-option-item active" data-col="produto" data-ord="asc" onclick="selectTableSort('produto', 'asc')">Nome / Razão Social (A - Z)</button>
+                  <button type="button" class="hover-option-item" data-col="produto" data-ord="desc" onclick="selectTableSort('produto', 'desc')">Nome / Razão Social (Z - A)</button>
+                  <button type="button" class="hover-option-item" data-col="pf_18" data-ord="desc" onclick="selectTableSort('pf_18', 'desc')">Preço Teto PF 18% (Maior primeiro)</button>
+                  <button type="button" class="hover-option-item" data-col="pf_18" data-ord="asc" onclick="selectTableSort('pf_18', 'asc')">Preço Teto PF 18% (Menor primeiro)</button>
+                  <button type="button" class="hover-option-item" data-col="tarja" data-ord="asc" onclick="selectTableSort('tarja', 'asc')">Tarja Sanitária</button>
+                  <button type="button" class="hover-option-item" data-col="pais" data-ord="asc" onclick="selectTableSort('pais', 'asc')">Origem / País</button>
+                  <button type="button" class="hover-option-item" data-col="capital_social" data-ord="desc" onclick="selectTableSort('capital_social', 'desc')">Capital Social (Maior primeiro)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fallback Hidden Selectors for Full Backward Compatibility -->
+            <select id="table-filter-tarja" class="custom-select-sm" style="display:none;" onchange="setTableFilter('tarja', this.value)">
               <option value="">Todas as Tarjas Sanitárias</option>
               <option value="Tarja Preta">Tarja Preta (Controle Especial)</option>
               <option value="Tarja Vermelha">Tarja Vermelha</option>
               <option value="Tarja Vermelha (Retenção de Receita)">Tarja Vermelha (Retenção)</option>
               <option value="Isento de Prescrição (MIP)">Isento de Prescrição (MIP / Sem Tarja)</option>
             </select>
-
-            <!-- Table Filter: Origem / Tipo -->
-            <select id="table-filter-tipo" class="custom-select-sm" onchange="setTableFilter('tipo', this.value)">
+            <select id="table-filter-tipo" class="custom-select-sm" style="display:none;" onchange="setTableFilter('tipo', this.value)">
               <option value="">Todas as Origens Fabris</option>
               <option value="NACIONAL">Fábricas Nacionais</option>
               <option value="INTERNACIONAL">Plantas Internacionais (Importado)</option>
@@ -679,6 +1097,36 @@
                 <option value="Tarja Vermelha (Retenção de Receita)">Tarja Vermelha (Retenção de Receita)</option>
                 <option value="Tarja Preta">Tarja Preta (Controle Especial)</option>
                 <option value="Isento de Prescrição (MIP)">Isento de Prescrição (MIP / Sem Tarja)</option>
+              </select>
+
+              <select id="filter-segmento" class="custom-select">
+                <option value="">Todos os Tipos / Segmentos</option>
+                <option value="sinteticos">Sintéticos em Geral</option>
+                <option value="genericos">Genéricos</option>
+                <option value="similares">Similares</option>
+                <option value="novos">Novos / Referência</option>
+                <option value="biologicos">Biológicos</option>
+                <option value="especificos">Específicos</option>
+                <option value="fitoterapicos">Fitoterápicos</option>
+              </select>
+
+              <select id="filter-embalagem" class="custom-select">
+                <option value="">Todas as Embalagens</option>
+                <option value="Blister">Blister</option>
+                <option value="Frasco">Frasco</option>
+                <option value="Frasco-Ampola">Frasco-Ampola</option>
+                <option value="Bisnaga">Bisnaga</option>
+                <option value="Sachê">Sachê</option>
+                <option value="Ampola">Ampola</option>
+                <option value="Seringa">Seringa Preenchida</option>
+              </select>
+
+              <select id="filter-forma" class="custom-select">
+                <option value="">Todas as Formas</option>
+                <option value="Solida">Sólida (Comprimido / Cápsula)</option>
+                <option value="Liquida">Líquida (Xarope / Solução)</option>
+                <option value="Semi-solida">Semi-sólida (Pomada / Creme)</option>
+                <option value="Injetavel">Injetável / Solução Estéril</option>
               </select>
             </div>
           </div>
