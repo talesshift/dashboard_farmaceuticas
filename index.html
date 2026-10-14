@@ -1689,6 +1689,127 @@ body {
   background: #fef2f2;
 }
 
+/* Field Search & CSV Export Toolbar */
+.field-search-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.field-search-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark);
+  white-space: nowrap;
+}
+
+.field-search-select {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark);
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field-search-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background: #ffffff;
+}
+
+.field-search-input-wrap {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.field-search-input {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  outline: none;
+  background: #f8fafc;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field-search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background: #ffffff;
+}
+
+.btn-add-search {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.btn-add-search:hover {
+  background: #1d4ed8;
+}
+
+.btn-add-search:active {
+  transform: scale(0.98);
+}
+
+.btn-export-csv {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff !important;
+  background: #059669;
+  border: 1px solid #047857;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.btn-export-csv:hover {
+  background: #047857;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.25);
+}
+
+.filter-chip.chip-search {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.filter-chip.chip-search .filter-chip-scope {
+  color: #059669;
+}
+
+
 
 
 
@@ -1922,6 +2043,12 @@ body {
           <button data-tab="tab-empresas">
             <span class="nav-icon">[L]</span>
             <span>Laboratórios & Sócios</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button data-tab="tab-fabricas">
+            <span class="nav-icon">[P]</span>
+            <span>Fábricas & Plantas</span>
           </button>
         </li>
         <li class="nav-item">
@@ -2301,6 +2428,66 @@ body {
           </div>
         </div>
 
+        <!-- Field-Specific Search & CSV Export Toolbar -->
+        <div class="field-search-toolbar">
+          <div class="field-search-label">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span>Pesquisa por Campo:</span>
+          </div>
+          <select id="field-search-select" class="field-search-select" aria-label="Selecione o campo para filtrar">
+            <option value="all">Todos os Campos (Universal)</option>
+            <option value="endereco">Endereço / Logradouro / Bairro</option>
+            <option value="cidade">Cidade / Município</option>
+            <option value="uf">Estado / UF</option>
+            <option value="pais">País de Fabricação / Origem</option>
+            <option value="empresa">Razão Social / Detentora da Marca</option>
+            <option value="fabrica">Fábrica Real / Planta Fabril</option>
+            <option value="produto">Nome do Medicamento / Produto</option>
+            <option value="substancia">Princípio Ativo / Substância</option>
+            <option value="socios">Quadro Societário / Sócios (QSA)</option>
+            <option value="cnpj">CNPJ (Detentora ou Fábrica)</option>
+            <option value="classe">Classe Terapêutica</option>
+            <option value="forma">Forma Farmacêutica</option>
+            <option value="embalagem">Embalagem Primária</option>
+            <option value="tarja">Tarja Sanitária</option>
+            <option value="modelo">Modelo Produtivo (CMO, Própria, Importação)</option>
+            <option value="registro">Número de Registro ANVISA</option>
+            <option value="cnae">CNAE Principal</option>
+          </select>
+          <div class="field-search-input-wrap">
+            <input type="text" id="field-search-input" class="field-search-input" placeholder="Digite o termo para filtrar (ex: joinville, injetavel, ems...)" onkeydown="if(event.key==='Enter'){ addFieldSearchFilter(); }">
+          </div>
+          <button type="button" class="btn-add-search" onclick="addFieldSearchFilter()">
+            Adicionar Filtro
+          </button>
+
+          <!-- Exportar CSV Dropdown -->
+          <div class="hover-dropdown" style="margin-left: auto;">
+            <button type="button" class="btn-export-csv" id="btn-export-csv-menu">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Exportar Dados (CSV)</span>
+              <span class="hover-caret" style="color: #fff; font-size: 10px;">▼</span>
+            </button>
+            <div class="hover-dropdown-menu" style="min-width: 280px; right: 0; left: auto;">
+              <div class="hover-menu-header">Exportar Dados Filtrados (.csv)</div>
+              <div class="hover-options-list">
+                <button type="button" class="hover-option-item" onclick="exportDataToCsv('medicamentos')">
+                  <strong>Medicamentos Filtrados</strong> (Catálogo Completo)
+                </button>
+                <button type="button" class="hover-option-item" onclick="exportDataToCsv('fabricas')">
+                  <strong>Fábricas & Plantas Fabris</strong> (+ Detentoras & Formas)
+                </button>
+                <button type="button" class="hover-option-item" onclick="exportDataToCsv('empresas')">
+                  <strong>Empresas Detentoras & QSA</strong> (+ Fábricas, Raio-X & Formas)
+                </button>
+                <button type="button" class="hover-option-item" onclick="exportDataToCsv('auto')">
+                  <strong>Tabela Atual</strong> (Visualização Ativa)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Unified Active Filters Bar -->
         <div id="active-filters-bar" class="active-filters-bar">
           <div class="active-filters-label">
@@ -2599,6 +2786,10 @@ body {
               </div>
               <button class="btn-clear-drill" onclick="resetDrilldown()">
                 Limpar Filtro / Ver Todos
+              </button>
+              <button type="button" class="btn btn-export-csv" onclick="exportDataToCsv('auto')" title="Exportar dados completos filtrados da tabela para CSV">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Exportar CSV</span>
               </button>
             </div>
           </div>
@@ -3039,6 +3230,7 @@ body {
                   <th class="sortable-th" onclick="sortEmpresasTab('uf')">UF Sede <span class="sort-icon" id="sort-emp-uf">↕</span></th>
                   <th class="sortable-th" onclick="sortEmpresasTab('capital_social')">Capital Social <span class="sort-icon" id="sort-emp-capital_social">↕</span></th>
                   <th class="sortable-th" onclick="sortEmpresasTab('total_produtos_cmed')">Total de Produtos <span class="sort-icon" id="sort-emp-total_produtos_cmed">↕</span></th>
+                  <th>Fábricas & Plantas Vinculadas</th>
                   <th>Quadro Societário (Sócios / Donos)</th>
                   <th>Ações & QSA</th>
                 </tr>
@@ -3047,6 +3239,59 @@ body {
                 <!-- Injected via JavaScript -->
               </tbody>
             </table>
+          </div>
+          <div class="pagination-footer">
+            <div id="empresas-pagination-info">Carregando laboratórios...</div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TAB: FÁBRICAS & PLANTAS PRODUTIVAS (VICE-VERSA DETENTORAS) -->
+      <!-- ========================================================================= -->
+      <section id="tab-fabricas" class="tab-content">
+        
+        <div class="data-card">
+          <div class="data-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3 style="font-size: 16px; font-weight: 700;">Fábricas & Plantas Industriais Homologadas</h3>
+              <p style="font-size: 13px; color: var(--text-muted);">894 unidades fabris nacionais e internacionais homologadas pela ANVISA e suas detentoras atendidas</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <div class="search-input-group" style="max-width: 280px;">
+                <span class="search-icon" style="font-size: 11px; font-weight: bold; color: var(--text-muted);">BUSCA</span>
+                <input type="text" id="search-fabrica" placeholder="Filtrar fábrica, país, UF ou detentora...">
+              </div>
+              <select id="filter-fabrica-tipo" class="custom-select" style="min-width: 140px;">
+                <option value="">Todos os Tipos</option>
+                <option value="NACIONAL">Nacional</option>
+                <option value="INTERNACIONAL">Internacional</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="modern-table sortable-table">
+              <thead>
+                <tr>
+                  <th class="sortable-th" onclick="sortFabricasTab('fabrica')">Fábrica / Planta Produtiva <span class="sort-icon" id="sort-fab-fabrica">↕</span></th>
+                  <th class="sortable-th" onclick="sortFabricasTab('tipo')">Tipo <span class="sort-icon" id="sort-fab-tipo">↕</span></th>
+                  <th class="sortable-th" onclick="sortFabricasTab('pais')">País / UF <span class="sort-icon" id="sort-fab-pais">↕</span></th>
+                  <th class="sortable-th" onclick="sortFabricasTab('total_meds')">Remédios Produzidos <span class="sort-icon" id="sort-fab-total_meds">↕</span></th>
+                  <th class="sortable-th" onclick="sortFabricasTab('total_detentoras')">Detentoras Atendidas <span class="sort-icon" id="sort-fab-total_detentoras">↕</span></th>
+                  <th>Empresas Detentoras Vinculadas (Marcas)</th>
+                  <th>Ações & QSA</th>
+                </tr>
+              </thead>
+              <tbody id="fabricas-table-body">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination-footer">
+            <div id="fabricas-pagination-info">Carregando fábricas...</div>
           </div>
         </div>
 
