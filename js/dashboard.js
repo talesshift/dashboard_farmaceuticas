@@ -174,17 +174,15 @@ async function getStaticCatalogo() {
 
 function matchFieldSearches(m, searches) {
   if (!searches || searches.length === 0) return true;
-  const cDet = (m.cnpj_detentora || '').replace(/\D/g, '');
-  const cFab = (m.cnpj_fabrica || '').replace(/\D/g, '');
-  const isPropria = (m.tipo !== 'INTERNACIONAL' && cDet && cFab && cDet === cFab);
-  const isImport = (m.tipo === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
-  const isTerceiriz = (!isImport && !isPropria);
+  const isPropria = m.modelo_prod === 'Fabricação Própria';
+  const isImport = m.modelo_prod === 'Importação';
+  const isTerceiriz = m.modelo_prod === 'Terceirização Nacional (CMO)';
 
   return searches.every(fs => {
     const fld = (fs.field || 'all').toLowerCase().trim();
     const v = (fs.val || '').toLowerCase().trim();
     if (!v) return true;
-    const vClean = v.replace(/\D/g, '');
+    const vClean = v.replace(/[^0-9]/g, '');
 
     if (fld === 'endereco' || fld === 'cidade') {
       const cid = (m.cidade || '').toLowerCase();
@@ -228,8 +226,8 @@ function matchFieldSearches(m, searches) {
       return (m.registro_13 || '').includes(v);
     }
     if (fld === 'cnpj') {
-      const cd = (m.cnpj_detentora || '').replace(/\D/g, '');
-      const cf = (m.cnpj_fabrica || '').replace(/\D/g, '');
+      const cd = m.cnpj_detentora_limpo || (m.cnpj_detentora || '').replace(/[^0-9]/g, '');
+      const cf = m.cnpj_fabrica_limpo || (m.cnpj_fabrica || '').replace(/[^0-9]/g, '');
       return cd.includes(vClean || v) || cf.includes(vClean || v);
     }
     if (fld === 'modelo') {
@@ -244,7 +242,8 @@ function matchFieldSearches(m, searches) {
            (m.fabrica || '').toLowerCase().includes(v) ||
            (m.classe || '').toLowerCase().includes(v) ||
            (m.cidade || '').toLowerCase().includes(v) ||
-           (m.uf || '').toLowerCase().includes(v);
+           (m.uf || '').toLowerCase().includes(v) ||
+           (m.registro_13 || '').includes(v);
   });
 }
 
@@ -844,11 +843,9 @@ window.fetch = async function(url, options) {
           if (p.includes('NAO MAP') || p.includes('NÃO MAP')) return (m.tipo === null && m.pais === null);
           return (m.pais || '').toUpperCase() === p;
         })) return false;
-        const cDet = (m.cnpj_detentora || '').replace(/\D/g, '');
-        const cFab = (m.cnpj_fabrica || '').replace(/\D/g, '');
-        const isPropria = (m.tipo !== 'INTERNACIONAL' && cDet && cFab && cDet === cFab);
-        const isImport = (m.tipo === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
-        const isTerceiriz = (!isImport && !isPropria);
+        const isPropria = m.modelo_prod === 'Fabricação Própria';
+        const isImport = m.modelo_prod === 'Importação';
+        const isTerceiriz = m.modelo_prod === 'Terceirização Nacional (CMO)';
 
         if (pModelos.length > 0 && !pModelos.some(mod => {
           const modUp = mod.toUpperCase();
@@ -904,7 +901,27 @@ window.fetch = async function(url, options) {
         return true;
       });
 
-      // Compute counts across all filtered items before search/pagination
+      // Unified search bar filter across ALL fields
+      if (q) {
+        const ql = q.toLowerCase();
+        filtered = filtered.filter(m => (
+          (m.produto && m.produto.toLowerCase().includes(ql)) ||
+          (m.substancia && m.substancia.toLowerCase().includes(ql)) ||
+          (m.detentora && m.detentora.toLowerCase().includes(ql)) ||
+          (m.fabrica && m.fabrica.toLowerCase().includes(ql)) ||
+          (m.registro_13 && m.registro_13.includes(ql)) ||
+          (m.cidade && m.cidade.toLowerCase().includes(ql)) ||
+          (m.uf && m.uf.toLowerCase().includes(ql)) ||
+          (m.pais && m.pais.toLowerCase().includes(ql)) ||
+          (m.classe && m.classe.toLowerCase().includes(ql)) ||
+          (m.forma && m.forma.toLowerCase().includes(ql)) ||
+          (m.embalagem && m.embalagem.toLowerCase().includes(ql)) ||
+          (m.cnpj_detentora && m.cnpj_detentora.includes(ql)) ||
+          (m.cnpj_fabrica && m.cnpj_fabrica.includes(ql))
+        ));
+      }
+
+      // Compute counts across all filtered items AFTER filters and q search
       const cntMeds = new Set(filtered.map(m => m.registro_13 || m.produto)).size;
       const cntFabs = new Set(filtered.map(m => m.fabrica).filter(Boolean)).size;
       const cntEmps = new Set(filtered.map(m => m.detentora).filter(Boolean)).size;
@@ -956,10 +973,6 @@ window.fetch = async function(url, options) {
           total_marcas: e.produtos_set.size,
           total_apresentacoes: e.total_produtos,
           total_produtos: e.produtos_set.size
-        }));
-        if (q) {
-          list = list.filter(e => e.detentora.toLowerCase().includes(q) || (e.cnpj && e.cnpj.includes(q)));
-        }
         if (pFaixaQtd) {
           if (pFaixaQtd === '1a5') list = list.filter(e => e.total_meds >= 1 && e.total_meds <= 5);
           else if (pFaixaQtd === '6a25') list = list.filter(e => e.total_meds >= 6 && e.total_meds <= 25);
@@ -1018,9 +1031,6 @@ window.fetch = async function(url, options) {
           total_apresentacoes: f.total_produtos,
           total_detentoras_atendidas: f.detentoras_set.size
         }));
-        if (q) {
-          list = list.filter(f => f.fabrica.toLowerCase().includes(q) || (f.pais && f.pais.toLowerCase().includes(q)));
-        }
         if (pFaixaQtd) {
           if (pFaixaQtd === '1a5') list = list.filter(f => f.total_meds >= 1 && f.total_meds <= 5);
           else if (pFaixaQtd === '6a25') list = list.filter(f => f.total_meds >= 6 && f.total_meds <= 25);
@@ -1051,9 +1061,6 @@ window.fetch = async function(url, options) {
       }
 
       // Default: entity === 'medicamentos'
-      if (q) {
-        filtered = filtered.filter(m => (m.produto || '').toLowerCase().includes(q) || (m.substancia || '').toLowerCase().includes(q) || (m.registro_13 || '').includes(q));
-      }
       if (pSortBy === 'pf_18' || pSortBy === 'preco') {
         filtered.sort((a, b) => pSortOrder === 'asc' ? (a.pf_18 || 0) - (b.pf_18 || 0) : (b.pf_18 || 0) - (a.pf_18 || 0));
       } else if (pSortBy === 'tarja') {
@@ -1201,11 +1208,9 @@ window.fetch = async function(url, options) {
           return (m.pais || '').toUpperCase() === p;
         })) return false;
 
-        const cDet = (m.cnpj_detentora || '').replace(/\D/g, '');
-        const cFab = (m.cnpj_fabrica || '').replace(/\D/g, '');
-        const isPropria = (m.tipo !== 'INTERNACIONAL' && cDet && cFab && cDet === cFab);
-        const isImport = (m.tipo === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
-        const isTerceiriz = (!isImport && !isPropria);
+        const isPropria = m.modelo_prod === 'Fabricação Própria';
+        const isImport = m.modelo_prod === 'Importação';
+        const isTerceiriz = m.modelo_prod === 'Terceirização Nacional (CMO)';
 
         if (pModelos.length > 0 && !pModelos.some(mod => {
           const modUp = mod.toUpperCase();
@@ -1216,11 +1221,20 @@ window.fetch = async function(url, options) {
         })) return false;
 
         if (q) {
-          const matchQ = (m.produto || '').toLowerCase().includes(q) ||
-                         (m.substancia || '').toLowerCase().includes(q) ||
-                         (m.detentora || '').toLowerCase().includes(q) ||
-                         (m.fabrica || '').toLowerCase().includes(q) ||
-                         (m.registro_13 || '').includes(q);
+          const ql = q.toLowerCase();
+          const matchQ = (m.produto && m.produto.toLowerCase().includes(ql)) ||
+                         (m.substancia && m.substancia.toLowerCase().includes(ql)) ||
+                         (m.detentora && m.detentora.toLowerCase().includes(ql)) ||
+                         (m.fabrica && m.fabrica.toLowerCase().includes(ql)) ||
+                         (m.registro_13 && m.registro_13.includes(ql)) ||
+                         (m.cidade && m.cidade.toLowerCase().includes(ql)) ||
+                         (m.uf && m.uf.toLowerCase().includes(ql)) ||
+                         (m.pais && m.pais.toLowerCase().includes(ql)) ||
+                         (m.classe && m.classe.toLowerCase().includes(ql)) ||
+                         (m.forma && m.forma.toLowerCase().includes(ql)) ||
+                         (m.embalagem && m.embalagem.toLowerCase().includes(ql)) ||
+                         (m.cnpj_detentora && m.cnpj_detentora.includes(ql)) ||
+                         (m.cnpj_fabrica && m.cnpj_fabrica.includes(ql));
           if (!matchQ) return false;
         }
         return true;
@@ -1693,15 +1707,27 @@ window.fetch = async function(url, options) {
 
       const t0 = performance.now();
 
-      function parseSelectedColumns(sql, defaultCols) {
-        const clean = sql.trim();
-        const selectMatch = clean.match(/SELECT\s+([\s\S]+?)\s+FROM\s+/i);
-        if (!selectMatch) return defaultCols.map(c => ({ expr: c, alias: c }));
+      function parseSelectedColumns(sql, sampleRow, defaultCols) {
+        const clean = sql.trim().replace(/;\s*$/, '');
+        const selectMatch = clean.match(/SELECT\s+(?:DISTINCT\s+)?([\s\S]+?)\s+FROM\s+/i);
 
-        const rawCols = selectMatch[1].trim();
-        if (rawCols === '*' || rawCols.startsWith('*')) return defaultCols.map(c => ({ expr: c, alias: c }));
+        let availableCols = defaultCols;
+        if (sampleRow && typeof sampleRow === 'object') {
+          const keys = Object.keys(sampleRow).filter(k => {
+            const v = sampleRow[k];
+            return typeof v !== 'object' || v === null;
+          });
+          if (keys.length > 0) availableCols = keys;
+        }
 
-        const cols = [];
+        if (!selectMatch) return availableCols.map(c => ({ expr: c, alias: c }));
+
+        let rawCols = selectMatch[1].trim();
+        if (rawCols === '*' || rawCols.startsWith('*')) {
+          return availableCols.map(c => ({ expr: c, alias: c }));
+        }
+
+        const rawList = [];
         let current = '';
         let depth = 0;
         for (let i = 0; i < rawCols.length; i++) {
@@ -1709,71 +1735,99 @@ window.fetch = async function(url, options) {
           if (char === '(') depth++;
           else if (char === ')') depth--;
           if (char === ',' && depth === 0) {
-            if (current.trim()) cols.push(current.trim());
+            if (current.trim()) rawList.push(current.trim());
             current = '';
           } else {
             current += char;
           }
         }
-        if (current.trim()) cols.push(current.trim());
-        if (cols.length === 0) return defaultCols.map(c => ({ expr: c, alias: c }));
+        if (current.trim()) rawList.push(current.trim());
+        if (rawList.length === 0) return availableCols.map(c => ({ expr: c, alias: c }));
 
-        return cols.map(c => {
-          const asMatch = c.match(/^(.*?)\s+(?:AS\s+)?([a-zA-Z0-9_]+)$/i);
-          if (asMatch && !c.includes('(')) {
-            return { expr: asMatch[1].trim(), alias: asMatch[2].trim() };
+        return rawList.map(item => {
+          let raw = item.trim();
+          if (raw.toUpperCase().startsWith('DISTINCT ')) {
+            raw = raw.substring(9).trim();
           }
-          const funcAsMatch = c.match(/^([a-zA-Z0-9_]+\s*\([\s\S]+\))\s+(?:AS\s+)?([a-zA-Z0-9_]+)$/i);
-          if (funcAsMatch) {
-            return { expr: funcAsMatch[1].trim(), alias: funcAsMatch[2].trim() };
+
+          let expr = raw;
+          let alias = raw;
+
+          const funcMatch = raw.match(/^([a-zA-Z0-9_]+\s*\([\s\S]*\))\s+(?:AS\s+)?([a-zA-Z0-9_]+)$/i);
+          if (funcMatch) {
+            expr = funcMatch[1].trim();
+            alias = funcMatch[2].trim();
+          } else {
+            const asMatch = raw.match(/^(.*?)\s+(?:AS\s+)?([a-zA-Z0-9_]+)$/i);
+            if (asMatch && !raw.includes('(')) {
+              expr = asMatch[1].trim();
+              alias = asMatch[2].trim();
+            }
           }
-          return { expr: c, alias: c };
+
+          let cleanAlias = alias;
+          if (cleanAlias.includes('.')) {
+            cleanAlias = cleanAlias.split('.').pop().trim();
+          }
+          return { expr, alias: cleanAlias, rawExpr: raw };
         });
       }
 
       function extractValue(row, colExpr, colAlias) {
         if (!row) return '-';
+        const cleanAlias = (colAlias || '').includes('.') ? colAlias.split('.').pop().trim() : (colAlias || '').trim();
+        const cleanExpr = (colExpr || '').includes('.') ? colExpr.split('.').pop().trim() : (colExpr || '').trim();
+
+        if (row[cleanAlias] !== undefined && row[cleanAlias] !== null) return row[cleanAlias];
+        if (row[cleanExpr] !== undefined && row[cleanExpr] !== null) return row[cleanExpr];
         if (row[colAlias] !== undefined && row[colAlias] !== null) return row[colAlias];
         if (row[colExpr] !== undefined && row[colExpr] !== null) return row[colExpr];
 
-        const target = (colAlias || colExpr || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+        const normAlias = cleanAlias.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        const normExpr = cleanExpr.toLowerCase().replace(/[^a-z0-9_]/g, '');
 
         for (const k of Object.keys(row)) {
           const nk = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
-          if (nk === target) return row[k];
+          if (nk === normAlias || nk === normExpr) return row[k];
         }
 
         // Canonical cross-field aliases
-        if (target.includes('produto')) return row.produto || row.produto_nome || row.nome_produto || '-';
-        if (target.includes('detentora') || target.includes('laboratorio')) return row.detentora || row.detentora_marca || row.razao_social || '-';
-        if (target.includes('fabrica')) return row.fabrica || row.fabrica_real || row.razao_social_fabricante || '-';
-        if (target.includes('pais')) return row.pais || row.pais_fabrica || 'BRASIL';
-        if (target.includes('uf')) return row.uf || row.uf_fabrica || '-';
-        if (target.includes('cidade')) return row.cidade || row.cidade_fabrica || '-';
-        if (target.includes('tipo')) return row.tipo || row.tipo_fabricante || 'NACIONAL';
-        if (target.includes('capital')) return row.capital_social || 0;
-        if (target.includes('socio')) return row.socios_donos_administradores || row.socios || '-';
-        if (target.includes('pf_18') || target.includes('preco')) return row.pf_18 || row.preco_medio_pf18 || 0;
-        if (target.includes('pmvg_18')) return row.pmvg_18 || 0;
-        if (target.includes('registro')) return row.registro_13 || row.numero_registro_base || '-';
-        if (target.includes('cnpj')) return row.cnpj || row.cnpj_detentora || row.cnpj_fabrica || row.cnpj_formatado || row.cnpj_limpo || '-';
-        if (target.includes('substancia') || target.includes('principio') || target.includes('molecula')) return row.substancia || row.principio_ativo || '-';
-        if (target.includes('classe')) return row.classe || row.classe_terapeutica || '-';
-        if (target.includes('categoria')) return row.categoria || row.categoria_regulatoria || '-';
-        if (target.includes('tarja')) return row.tarja || row.anvisa_tarja || '-';
-        if (target.includes('forma')) return row.forma || row.anvisa_forma_farmaceutica || '-';
-        if (target.includes('embalagem')) return row.embalagem || row.anvisa_embalagem_primaria || '-';
-        if (target.includes('telefone')) return row.telefone || '-';
-        if (target.includes('email')) return row.email || '-';
-        if (target.includes('modelo')) return row.modelo_producao || row.modelo || 'FABRICACAO PROPRIA';
-        if (target.includes('count') || target.includes('total_medicamentos') || target.includes('total_meds') || target.includes('total_produtos')) {
-          return row.total_meds || row.total_medicamentos || row.total_produtos_cmed || row.total || row.total_apresentacoes || 1;
-        }
-        if (target.includes('total_detentoras') || target.includes('total_marcas')) {
-          return row.total_detentoras || (row.detentoras_list ? row.detentoras_list.length : 1);
+        if (normAlias.includes('count') || normExpr.includes('count') || normAlias.includes('total') || normExpr.includes('total')) {
+          if (row.total_medicamentos !== undefined) return row.total_medicamentos;
+          if (row.total_meds !== undefined) return row.total_meds;
+          if (row.total_produtos_cmed !== undefined) return row.total_produtos_cmed;
+          if (row.total_produtos !== undefined) return row.total_produtos;
+          if (row.total_apresentacoes !== undefined) return row.total_apresentacoes;
+          if (row.total_marcas !== undefined) return row.total_marcas;
+          if (row.total_detentoras !== undefined) return row.total_detentoras;
+          if (row.total !== undefined) return row.total;
+          return 1;
         }
 
-        return row[colAlias] ?? row[colExpr] ?? '-';
+        if (normAlias.includes('produto') || normExpr.includes('produto')) return row.produto || row.produto_nome || row.nome_produto || '-';
+        if (normAlias.includes('detentora') || normExpr.includes('detentora') || normAlias.includes('laboratorio')) return row.detentora || row.detentora_marca || row.razao_social || '-';
+        if (normAlias.includes('fabrica') || normExpr.includes('fabrica')) return row.fabrica || row.fabrica_real || row.razao_social_fabricante || '-';
+        if (normAlias.includes('pais') || normExpr.includes('pais')) return row.pais || row.pais_fabrica || row.pais_fabricante || 'BRASIL';
+        if (normAlias.includes('uf') || normExpr.includes('uf')) return row.uf || row.uf_fabrica || row.uf_fabricante || row.uf_detentora || '-';
+        if (normAlias.includes('cidade') || normExpr.includes('cidade')) return row.cidade || row.cidade_fabrica || row.cidade_fabricante || '-';
+        if (normAlias.includes('tipo') || normExpr.includes('tipo')) return row.tipo || row.tipo_fabricante || 'NACIONAL';
+        if (normAlias.includes('capital') || normExpr.includes('capital')) return row.capital_social || 0;
+        if (normAlias.includes('socio') || normExpr.includes('socio')) return row.socios_donos_administradores || row.socios || '-';
+        if (normAlias.includes('pf_18') || normExpr.includes('pf_18') || normAlias.includes('preco')) return row.pf_18 || row.preco_medio_pf18 || 0;
+        if (normAlias.includes('pmvg') || normExpr.includes('pmvg')) return row.pmvg_18 || 0;
+        if (normAlias.includes('registro') || normExpr.includes('registro')) return row.registro_13 || row.numero_registro_base || '-';
+        if (normAlias.includes('cnpj') || normExpr.includes('cnpj')) return row.cnpj || row.cnpj_detentora || row.cnpj_fabrica || row.cnpj_formatado || row.cnpj_limpo || '-';
+        if (normAlias.includes('substancia') || normExpr.includes('substancia') || normAlias.includes('principio') || normAlias.includes('molecula')) return row.substancia || row.principio_ativo || '-';
+        if (normAlias.includes('classe') || normExpr.includes('classe')) return row.classe || row.classe_terapeutica || '-';
+        if (normAlias.includes('categoria') || normExpr.includes('categoria')) return row.categoria || row.categoria_regulatoria || '-';
+        if (normAlias.includes('tarja') || normExpr.includes('tarja')) return row.tarja || row.anvisa_tarja || '-';
+        if (normAlias.includes('forma') || normExpr.includes('forma')) return row.forma || row.anvisa_forma_farmaceutica || '-';
+        if (normAlias.includes('embalagem') || normExpr.includes('embalagem')) return row.embalagem || row.anvisa_embalagem_primaria || '-';
+        if (normAlias.includes('telefone') || normExpr.includes('telefone')) return row.telefone || '-';
+        if (normAlias.includes('email') || normExpr.includes('email')) return row.email || '-';
+        if (normAlias.includes('modelo') || normExpr.includes('modelo')) return row.modelo_prod || row.modelo_producao || 'Fabricação Própria';
+
+        return '-';
       }
 
       let columns = [];
@@ -1799,7 +1853,8 @@ window.fetch = async function(url, options) {
           const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
           if (limMatch) lim = parseInt(limMatch[1]);
 
-          const reqCols = parseSelectedColumns(rawQ, defaultCols);
+          const sample = source[0] || {};
+          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
           columns = reqCols.map(c => c.alias);
           rows = source.slice(0, lim).map(e => reqCols.map(c => extractValue(e, c.expr, c.alias)));
 
@@ -1828,7 +1883,8 @@ window.fetch = async function(url, options) {
           const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
           if (limMatch) lim = parseInt(limMatch[1]);
 
-          const reqCols = parseSelectedColumns(rawQ, defaultCols);
+          const sample = source[0] || {};
+          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
           columns = reqCols.map(c => c.alias);
           rows = source.slice(0, lim).map(f => reqCols.map(c => extractValue(f, c.expr, c.alias)));
 
@@ -1856,7 +1912,8 @@ window.fetch = async function(url, options) {
           const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
           if (limMatch) lim = parseInt(limMatch[1]);
 
-          const reqCols = parseSelectedColumns(rawQ, defaultCols);
+          const sample = tRows[0] || {};
+          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
           columns = reqCols.map(c => c.alias);
           rows = tRows.slice(0, lim).map(item => reqCols.map(c => extractValue(item, c.expr, c.alias)));
 
@@ -1870,7 +1927,8 @@ window.fetch = async function(url, options) {
           const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
           if (limMatch) lim = parseInt(limMatch[1]);
 
-          const reqCols = parseSelectedColumns(rawQ, defaultCols);
+          const sample = source[0] || {};
+          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
           columns = reqCols.map(c => c.alias);
           rows = source.slice(0, lim).map(e => reqCols.map(c => extractValue(e, c.expr, c.alias)));
 
@@ -1905,19 +1963,78 @@ window.fetch = async function(url, options) {
             filtered = filtered.filter(m => (m.tipo || '').toUpperCase() === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
           }
 
-          if (qNorm.includes('ORDER BY PF_18 DESC')) {
-            filtered.sort((a, b) => (b.pf_18 || 0) - (a.pf_18 || 0));
-          } else if (qNorm.includes('ORDER BY PF_18 ASC')) {
-            filtered.sort((a, b) => (a.pf_18 || 0) - (b.pf_18 || 0));
+          if (qNorm.includes("PAIS_FABRICA = 'ÍNDIA'") || qNorm.includes("PAIS_FABRICA = 'INDIA'") || qNorm.includes("'IND'")) {
+            filtered = filtered.filter(m => (m.pais || '').toUpperCase().includes('IND'));
+          }
+
+          if (qNorm.includes('GROUP BY')) {
+            const groupMatch = qNorm.match(/GROUP\s+BY\s+([a-zA-Z0-9_,\.\s]+?)(?:\s+ORDER|\s+LIMIT|;|$)/i);
+            if (groupMatch) {
+              const groupColRaw = groupMatch[1].trim().split(',')[0].trim();
+              const groupCol = groupColRaw.includes('.') ? groupColRaw.split('.').pop().trim() : groupColRaw;
+              const groups = {};
+              filtered.forEach(item => {
+                const grpVal = extractValue(item, groupCol, groupCol) || 'Outros';
+                if (!groups[grpVal]) {
+                  groups[grpVal] = {
+                    key: grpVal,
+                    sample: item,
+                    items: [],
+                    distinctMeds: new Set(),
+                    distinctEmps: new Set()
+                  };
+                }
+                groups[grpVal].items.push(item);
+                if (item.registro_13) groups[grpVal].distinctMeds.add(item.registro_13);
+                if (item.detentora) groups[grpVal].distinctEmps.add(item.detentora);
+              });
+
+              filtered = Object.values(groups).map(g => {
+                const agg = { ...g.sample };
+                agg[groupCol] = g.key;
+                agg.total_medicamentos = g.distinctMeds.size || g.items.length;
+                agg.total_meds = g.distinctMeds.size || g.items.length;
+                agg.total_apresentacoes = g.items.length;
+                agg.total_marcas = g.distinctEmps.size || 1;
+                agg.total_detentoras = g.distinctEmps.size || 1;
+                agg.count = g.items.length;
+                return agg;
+              });
+
+              if (qNorm.includes('ORDER BY') && (qNorm.includes('DESC') || qNorm.includes('ASC'))) {
+                filtered.sort((a, b) => {
+                  const valA = a.total_medicamentos || a.count || 0;
+                  const valB = b.total_medicamentos || b.count || 0;
+                  return qNorm.includes('ASC') ? valA - valB : valB - valA;
+                });
+              }
+            }
+          } else {
+            if (qNorm.includes('ORDER BY PF_18 DESC')) {
+              filtered.sort((a, b) => (b.pf_18 || 0) - (a.pf_18 || 0));
+            } else if (qNorm.includes('ORDER BY PF_18 ASC')) {
+              filtered.sort((a, b) => (a.pf_18 || 0) - (b.pf_18 || 0));
+            }
           }
 
           let lim = 20;
           const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
           if (limMatch) lim = parseInt(limMatch[1]);
 
-          const reqCols = parseSelectedColumns(rawQ, defaultCols);
+          const sample = filtered[0] || {};
+          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
           columns = reqCols.map(c => c.alias);
           rows = filtered.slice(0, lim).map(m => reqCols.map(c => extractValue(m, c.expr, c.alias)));
+        }
+
+        if (qNorm.includes('SELECT DISTINCT')) {
+          const seen = new Set();
+          rows = rows.filter(r => {
+            const key = JSON.stringify(r);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
         }
 
         const t1 = performance.now();
