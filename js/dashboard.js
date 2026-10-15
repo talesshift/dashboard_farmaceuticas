@@ -71,8 +71,21 @@ async function fetchAndDecryptJson(encUrl) {
     key,
     ciphertext
   );
+
+  let payloadBuf = decryptedBuf;
+  const decBytes = new Uint8Array(decryptedBuf);
+  if (decBytes.length >= 2 && decBytes[0] === 0x1f && decBytes[1] === 0x8b) {
+    if (typeof DecompressionStream !== 'undefined') {
+      const ds = new DecompressionStream('gzip');
+      const writer = ds.writable.getWriter();
+      writer.write(decryptedBuf);
+      writer.close();
+      payloadBuf = await new Response(ds.readable).arrayBuffer();
+    }
+  }
+
   const dec = new TextDecoder('utf-8');
-  return JSON.parse(dec.decode(decryptedBuf));
+  return JSON.parse(dec.decode(payloadBuf));
 }
 
 window.unlockDashboardWithPassword = async function() {
@@ -1246,10 +1259,24 @@ window.fetch = async function(url, options) {
         if (!staticDataCache.fabricas) {
           try { staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc'); } catch(e) {}
         }
+        if (!staticDataCache.empresas) {
+          try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch(e) {}
+        }
+        const empLookup = {};
+        if (staticDataCache.empresas) {
+          staticDataCache.empresas.forEach(e => {
+            const cLimpo = (e.cnpj_limpo || '').replace(/\D/g, '');
+            if (cLimpo) empLookup[cLimpo] = e;
+            if (e.razao_social) empLookup[e.razao_social.toUpperCase()] = e;
+            if (e.nome_fantasia) empLookup[e.nome_fantasia.toUpperCase()] = e;
+          });
+        }
         const fabLookup = {};
         if (staticDataCache.fabricas) {
           staticDataCache.fabricas.forEach(f => {
             if (f.fabrica) fabLookup[f.fabrica.toUpperCase()] = f;
+            const cLimpo = (f.cnpj || '').replace(/\D/g, '');
+            if (cLimpo) fabLookup[cLimpo] = f;
           });
         }
         const fabMap = {};
@@ -1257,6 +1284,8 @@ window.fetch = async function(url, options) {
           const key = m.fabrica || 'Não Mapeado';
           if (!fabMap[key]) {
             const cached = fabLookup[key.toUpperCase()] || {};
+            const cClean = (m.cnpj_fabrica || cached.cnpj || '').replace(/\D/g, '');
+            const corp = empLookup[cClean] || {};
             fabMap[key] = {
               fabrica: key,
               cnpj: m.cnpj_fabrica || cached.cnpj || '-',
@@ -1264,7 +1293,15 @@ window.fetch = async function(url, options) {
               pais: m.pais || cached.pais || 'BRASIL',
               uf: m.uf || cached.uf || '-',
               cidade: m.cidade || cached.cidade || '-',
-              endereco: cached.endereco || '-',
+              endereco: m.endereco_fabrica || cached.endereco || corp.endereco_completo || corp.logradouro || '-',
+              situacao: corp.situacao_cadastral || 'ATIVA',
+              data_inicio_atividade: corp.data_inicio_atividade || '-',
+              cnae_principal: corp.cnae_principal || '-',
+              cnae_descricao: corp.cnae_descricao || '-',
+              capital_social: corp.capital_social || 0,
+              telefone: corp.telefone || '-',
+              email: corp.email || '-',
+              socios_qsa: corp.socios_donos_administradores || corp.socios_resumo || '-',
               total_meds: 0,
               detentoras_set: new Set(),
               qtd_comprimidos: 0,
@@ -1315,7 +1352,9 @@ window.fetch = async function(url, options) {
 
         const headers = [
           "Fabrica_Real", "CNPJ_Fabrica", "Tipo_Fabricante", "Pais_Fabrica", "UF_Fabrica", "Cidade_Fabrica",
-          "Endereco_Fabrica", "Total_Medicamentos_Fabricados", "Total_Detentoras_Atendidas", "Detentoras_Atendidas",
+          "Endereco_Fabrica", "Situacao_Cadastral_Fabrica", "Data_Inicio_Atividade_Fabrica", "CNAE_Principal_Fabrica",
+          "CNAE_Descricao_Fabrica", "Capital_Social_Fabrica_R$", "Telefone_Fabrica", "Email_Fabrica",
+          "Quadro_Societario_QSA_Fabrica", "Total_Medicamentos_Fabricados", "Total_Detentoras_Atendidas", "Detentoras_Atendidas",
           "Qtd_Comprimidos", "Qtd_Capsulas", "Qtd_Solucao_Injetavel", "Qtd_Pomadas_Cremes", "Qtd_Suspensao_Gotas", "Qtd_Xaropes_Solucoes",
           "Qtd_Blister", "Qtd_Frasco_Ampola", "Qtd_Frascos", "Qtd_Bisnagas", "Qtd_Saches", "Qtd_Ampolas",
           "Qtd_Genericos", "Qtd_Similares", "Qtd_Novos_Referencia", "Qtd_Biologicos", "Qtd_Fitoterapicos"
@@ -1326,7 +1365,9 @@ window.fetch = async function(url, options) {
           const detsStr = Array.from(f.detentoras_set).join(' | ');
           csvRows.push([
             csvCell(f.fabrica), csvCell(f.cnpj), csvCell(f.tipo), csvCell(f.pais), csvCell(f.uf), csvCell(f.cidade),
-            csvCell(f.endereco), csvCell(f.total_meds), csvCell(f.detentoras_set.size), csvCell(detsStr),
+            csvCell(f.endereco), csvCell(f.situacao), csvCell(f.data_inicio_atividade), csvCell(f.cnae_principal),
+            csvCell(f.cnae_descricao), csvCell(f.capital_social), csvCell(f.telefone), csvCell(f.email),
+            csvCell(f.socios_qsa), csvCell(f.total_meds), csvCell(f.detentoras_set.size), csvCell(detsStr),
             csvCell(f.qtd_comprimidos), csvCell(f.qtd_capsulas), csvCell(f.qtd_solucao_injetavel), csvCell(f.qtd_pomadas_cremes),
             csvCell(f.qtd_suspensao_gotas), csvCell(f.qtd_xaropes_solucoes), csvCell(f.qtd_blister), csvCell(f.qtd_frasco_ampola),
             csvCell(f.qtd_frascos), csvCell(f.qtd_bisnagas), csvCell(f.qtd_saches), csvCell(f.qtd_ampolas),
@@ -1340,6 +1381,8 @@ window.fetch = async function(url, options) {
         const empLookup = {};
         if (staticDataCache.empresas) {
           staticDataCache.empresas.forEach(emp => {
+            const cLimpo = (emp.cnpj_limpo || '').replace(/\D/g, '');
+            if (cLimpo) empLookup[cLimpo] = emp;
             if (emp.razao_social) empLookup[emp.razao_social.toUpperCase()] = emp;
             if (emp.nome_fantasia) empLookup[emp.nome_fantasia.toUpperCase()] = emp;
           });
@@ -1348,7 +1391,8 @@ window.fetch = async function(url, options) {
         filtered.forEach(m => {
           const key = m.detentora || 'Desconhecida';
           if (!empMap[key]) {
-            const cached = empLookup[key.toUpperCase()] || {};
+            const cClean = (m.cnpj_detentora_limpo || m.cnpj_detentora || '').replace(/\D/g, '');
+            const cached = empLookup[cClean] || empLookup[key.toUpperCase()] || {};
             empMap[key] = {
               detentora: key,
               razao_social: key,
@@ -1359,15 +1403,17 @@ window.fetch = async function(url, options) {
               uf: cached.uf || m.uf || '-',
               cidade: cached.cidade || m.cidade || '-',
               endereco: cached.endereco_completo || cached.logradouro || '-',
+              logradouro: cached.logradouro || '-',
               numero: cached.numero || '-',
               bairro: cached.bairro || '-',
               cep: cached.cep || '-',
               telefone: cached.telefone || '-',
               email: cached.email || '-',
+              website: cached.website || '-',
               cnae_principal: cached.cnae_principal || '-',
               cnae_desc: cached.cnae_descricao || '-',
               capital_social: cached.capital_social || 0,
-              socios: cached.socios_donos_administradores || '-',
+              socios: cached.socios_donos_administradores || cached.socios_resumo || '-',
               total_meds: 0,
               fabricas_set: new Set(),
               qtd_comprimidos: 0,
@@ -1418,7 +1464,7 @@ window.fetch = async function(url, options) {
 
         const headers = [
           "Razao_Social_Detentora", "CNPJ", "Nome_Fantasia", "Situacao_Cadastral", "Data_Inicio_Atividade",
-          "UF", "Municipio", "Endereco_Completo", "Numero", "Bairro", "CEP", "Telefone", "Email",
+          "UF", "Municipio", "Endereco_Completo", "Logradouro", "Numero", "Bairro", "CEP", "Telefone", "Email", "Website",
           "CNAE_Principal", "CNAE_Descricao", "Capital_Social_R$", "Quadro_Societario_QSA", "Total_Medicamentos",
           "Total_Plantas_Fabris_Vinculadas", "Fabricas_Vinculadas",
           "Qtd_Comprimidos", "Qtd_Capsulas", "Qtd_Solucao_Injetavel", "Qtd_Pomadas_Cremes", "Qtd_Suspensao_Gotas", "Qtd_Xaropes_Solucoes",
@@ -1431,8 +1477,8 @@ window.fetch = async function(url, options) {
           const fabsStr = Array.from(e.fabricas_set).join(' | ');
           csvRows.push([
             csvCell(e.razao_social), csvCell(e.cnpj), csvCell(e.nome_fantasia), csvCell(e.situacao), csvCell(e.data_abertura),
-            csvCell(e.uf), csvCell(e.cidade), csvCell(e.endereco), csvCell(e.numero), csvCell(e.bairro), csvCell(e.cep),
-            csvCell(e.telefone), csvCell(e.email), csvCell(e.cnae_principal), csvCell(e.cnae_desc), csvCell(e.capital_social),
+            csvCell(e.uf), csvCell(e.cidade), csvCell(e.endereco), csvCell(e.logradouro), csvCell(e.numero), csvCell(e.bairro), csvCell(e.cep),
+            csvCell(e.telefone), csvCell(e.email), csvCell(e.website), csvCell(e.cnae_principal), csvCell(e.cnae_desc), csvCell(e.capital_social),
             csvCell(e.socios), csvCell(e.total_meds), csvCell(e.fabricas_set.size), csvCell(fabsStr),
             csvCell(e.qtd_comprimidos), csvCell(e.qtd_capsulas), csvCell(e.qtd_solucao_injetavel), csvCell(e.qtd_pomadas_cremes),
             csvCell(e.qtd_suspensao_gotas), csvCell(e.qtd_xaropes_solucoes), csvCell(e.qtd_blister), csvCell(e.qtd_frasco_ampola),
@@ -1441,20 +1487,106 @@ window.fetch = async function(url, options) {
           ].join(';'));
         });
       } else { // 'medicamentos'
+        if (!staticDataCache.empresas) {
+          try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch(e) {}
+        }
+        if (!staticDataCache.fabricas) {
+          try { staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc'); } catch(e) {}
+        }
+        const empLookup = {};
+        if (staticDataCache.empresas) {
+          staticDataCache.empresas.forEach(e => {
+            const cLimpo = (e.cnpj_limpo || '').replace(/\D/g, '');
+            if (cLimpo) empLookup[cLimpo] = e;
+            if (e.razao_social) empLookup[e.razao_social.toUpperCase()] = e;
+            if (e.nome_fantasia) empLookup[e.nome_fantasia.toUpperCase()] = e;
+          });
+        }
+        const fabLookup = {};
+        if (staticDataCache.fabricas) {
+          staticDataCache.fabricas.forEach(f => {
+            if (f.fabrica) fabLookup[f.fabrica.toUpperCase()] = f;
+            const cLimpo = (f.cnpj || '').replace(/\D/g, '');
+            if (cLimpo) fabLookup[cLimpo] = f;
+          });
+        }
+
         const headers = [
-          "Produto", "Substancia", "Apresentacao", "Preco_Fabrica_18", "PMVG_18", "Empresa_Detentora",
-          "CNPJ_Detentora", "Fabrica_Real", "CNPJ_Fabrica", "Tipo_Fabricante", "Pais_Fabricacao",
-          "UF_Fabricacao", "Cidade_Fabricacao", "Forma_Farmaceutica", "Embalagem_Primaria", "Categoria_Regulatoria",
-          "Classe_Terapeutica", "Tarja", "Registro_MS", "URL_Anvisa"
+          "Nome_Produto", "Principio_Ativo_Substancia", "Apresentacao_CMED", "Preco_Fabrica_PF18_R$", "Preco_Maximo_PMVG18_R$",
+          "Preco_Fabrica_Sem_Impostos_R$", "Regime_Preco", "Comercializacao_2024", "Registro_ANVISA_13",
+          "Categoria_Regulatoria", "Classe_Terapeutica", "Tarja_Sanitaria", "Forma_Farmaceutica", "Vias_Administracao",
+          "Embalagem_Primaria", "Embalagem_Secundaria", "Restricao_Prescricao", "Restricao_Uso", "Conservacao",
+          "URL_Consulta_ANVISA", "Modelo_Producao", "Fabrica_Real", "CNPJ_Fabrica", "Tipo_Fabricante", "Pais_Fabrica",
+          "UF_Fabrica", "Cidade_Fabrica", "Endereco_Fabrica", "Detentora_Marca", "CNPJ_Detentora",
+          "Razao_Social_Detentora", "Nome_Fantasia_Detentora", "Situacao_Cadastral_Detentora", "Data_Inicio_Atividade_Detentora",
+          "UF_Detentora", "Municipio_Detentora", "Endereco_Detentora_Completo", "Logradouro_Detentora", "Numero_Detentora",
+          "Bairro_Detentora", "CEP_Detentora", "Telefone_Detentora", "Email_Detentora", "Website_Detentora",
+          "CNAE_Principal_Detentora", "CNAE_Descricao_Detentora", "Capital_Social_Detentora_R$", "Quadro_Societario_QSA_Detentora"
         ];
         csvRows.push(headers.join(';'));
         filtered.forEach(m => {
+          const cDet = (m.cnpj_detentora_limpo || m.cnpj_detentora || '').replace(/\D/g, '');
+          const cFab = (m.cnpj_fabrica_limpo || m.cnpj_fabrica || '').replace(/\D/g, '');
+          const isPropria = (m.tipo !== 'INTERNACIONAL' && cDet && cFab && cDet === cFab);
+          const isImport = (m.tipo === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
+          const modeloProd = m.modelo_prod || (isImport ? 'Importação' : (isPropria ? 'Fabricação Própria' : 'Terceirização Nacional (CMO)'));
+
+          const emp = empLookup[cDet] || empLookup[(m.detentora || '').toUpperCase()] || {};
+          const fab = fabLookup[cFab] || fabLookup[(m.fabrica || '').toUpperCase()] || {};
+
+          const endFab = m.endereco_fabrica || fab.endereco || (m.endereco && m.endereco !== emp.endereco_completo ? m.endereco : '');
+          const endDet = emp.endereco_completo || emp.logradouro || m.endereco || '';
+          const sociosDet = emp.socios_donos_administradores || emp.socios_resumo || m.socios || '';
+
           csvRows.push([
-            csvCell(m.produto), csvCell(m.substancia), csvCell(m.apresentacao), csvCell(m.pf_18), csvCell(m.pmvg_18),
-            csvCell(m.detentora), csvCell(m.cnpj_detentora), csvCell(m.fabrica), csvCell(m.cnpj_fabrica),
-            csvCell(m.tipo), csvCell(m.pais), csvCell(m.uf), csvCell(m.cidade), csvCell(m.forma),
-            csvCell(m.embalagem), csvCell(m.categoria), csvCell(m.classe), csvCell(m.tarja),
-            csvCell(m.registro_13), csvCell(m.url_anvisa)
+            csvCell(m.produto),
+            csvCell(m.substancia),
+            csvCell(m.apresentacao),
+            csvCell(m.pf_18),
+            csvCell(m.pmvg_18),
+            csvCell(m.pf_sem_impostos || ''),
+            csvCell(m.regime_preco || ''),
+            csvCell(m.comercializacao_2024 || ''),
+            csvCell(m.registro_13),
+            csvCell(m.categoria),
+            csvCell(m.classe),
+            csvCell(m.tarja),
+            csvCell(m.forma),
+            csvCell(m.via_adm || m.vias_administracao || ''),
+            csvCell(m.embalagem),
+            csvCell(m.embalagem_sec || m.anvisa_embalagem_secundaria || ''),
+            csvCell(m.restricao_prescricao || ''),
+            csvCell(m.restricao_uso || ''),
+            csvCell(m.conservacao || ''),
+            csvCell(m.url_anvisa || ''),
+            csvCell(modeloProd),
+            csvCell(m.fabrica),
+            csvCell(m.cnpj_fabrica),
+            csvCell(m.tipo || 'NACIONAL'),
+            csvCell(m.pais || 'BRASIL'),
+            csvCell(m.uf || '-'),
+            csvCell(m.cidade || '-'),
+            csvCell(endFab),
+            csvCell(m.detentora),
+            csvCell(m.cnpj_detentora || emp.cnpj_formatado || emp.cnpj_limpo || ''),
+            csvCell(emp.razao_social || m.detentora || ''),
+            csvCell(emp.nome_fantasia || ''),
+            csvCell(emp.situacao_cadastral || 'ATIVA'),
+            csvCell(emp.data_inicio_atividade || ''),
+            csvCell(emp.uf || m.uf || ''),
+            csvCell(emp.cidade || m.cidade || ''),
+            csvCell(endDet),
+            csvCell(emp.logradouro || ''),
+            csvCell(emp.numero || ''),
+            csvCell(emp.bairro || ''),
+            csvCell(emp.cep || ''),
+            csvCell(emp.telefone || ''),
+            csvCell(emp.email || ''),
+            csvCell(emp.website || ''),
+            csvCell(emp.cnae_principal || m.cnae || ''),
+            csvCell(emp.cnae_descricao || ''),
+            csvCell(emp.capital_social || 0),
+            csvCell(sociosDet)
           ].join(';'));
         });
       }
@@ -5894,9 +6026,32 @@ async function generateClientCsv(type) {
   if (type === 'fabricas') {
     // Look up staticDataCache.fabricas
     const fabLookup = {};
+    // Pre-load empresas & fabricas cache if available
+    if (typeof staticDataCache !== 'undefined') {
+      if (!staticDataCache.empresas && typeof fetchAndDecryptJson === 'function') {
+        try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch(e) {}
+      }
+      if (!staticDataCache.fabricas && typeof fetchAndDecryptJson === 'function') {
+        try { staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc'); } catch(e) {}
+      }
+    }
+
+    const empLookup = {};
+    if (typeof staticDataCache !== 'undefined' && staticDataCache.empresas) {
+      staticDataCache.empresas.forEach(e => {
+        const cLimpo = (e.cnpj_limpo || '').replace(/\D/g, '');
+        if (cLimpo) empLookup[cLimpo] = e;
+        if (e.razao_social) empLookup[e.razao_social.toUpperCase()] = e;
+        if (e.nome_fantasia) empLookup[e.nome_fantasia.toUpperCase()] = e;
+      });
+    }
+
+    const fabLookup = {};
     if (typeof staticDataCache !== 'undefined' && staticDataCache.fabricas) {
       staticDataCache.fabricas.forEach(f => {
         if (f.fabrica) fabLookup[f.fabrica.toUpperCase()] = f;
+        const cLimpo = (f.cnpj || '').replace(/\D/g, '');
+        if (cLimpo) fabLookup[cLimpo] = f;
       });
     }
 
@@ -5905,6 +6060,8 @@ async function generateClientCsv(type) {
       const key = m.fabrica || 'Não Mapeado';
       if (!fabMap[key]) {
         const cached = fabLookup[key.toUpperCase()] || {};
+        const cClean = (m.cnpj_fabrica || cached.cnpj || '').replace(/\D/g, '');
+        const corp = empLookup[cClean] || {};
         fabMap[key] = {
           fabrica: key,
           cnpj: m.cnpj_fabrica || cached.cnpj || '-',
@@ -5912,7 +6069,15 @@ async function generateClientCsv(type) {
           pais: m.pais || cached.pais || 'BRASIL',
           uf: m.uf || cached.uf || '-',
           cidade: m.cidade || cached.cidade || '-',
-          endereco: cached.endereco || '-',
+          endereco: m.endereco_fabrica || cached.endereco || corp.endereco_completo || corp.logradouro || '-',
+          situacao: corp.situacao_cadastral || 'ATIVA',
+          data_inicio_atividade: corp.data_inicio_atividade || '-',
+          cnae_principal: corp.cnae_principal || '-',
+          cnae_descricao: corp.cnae_descricao || '-',
+          capital_social: corp.capital_social || 0,
+          telefone: corp.telefone || '-',
+          email: corp.email || '-',
+          socios_qsa: corp.socios_donos_administradores || corp.socios_resumo || '-',
           total_meds: 0,
           detentoras_set: new Set(),
           qtd_comprimidos: 0,
@@ -5964,7 +6129,9 @@ async function generateClientCsv(type) {
 
     const headers = [
       "Fabrica_Real", "CNPJ_Fabrica", "Tipo_Fabricante", "Pais_Fabrica", "UF_Fabrica", "Cidade_Fabrica",
-      "Endereco_Fabrica", "Total_Medicamentos_Fabricados", "Total_Detentoras_Atendidas", "Detentoras_Atendidas",
+      "Endereco_Fabrica", "Situacao_Cadastral_Fabrica", "Data_Inicio_Atividade_Fabrica", "CNAE_Principal_Fabrica",
+      "CNAE_Descricao_Fabrica", "Capital_Social_Fabrica_R$", "Telefone_Fabrica", "Email_Fabrica",
+      "Quadro_Societario_QSA_Fabrica", "Total_Medicamentos_Fabricados", "Total_Detentoras_Atendidas", "Detentoras_Atendidas",
       "Qtd_Comprimidos", "Qtd_Capsulas", "Qtd_Solucao_Injetavel", "Qtd_Pomadas_Cremes", "Qtd_Suspensao_Gotas", "Qtd_Xaropes_Solucoes",
       "Qtd_Blister", "Qtd_Frasco_Ampola", "Qtd_Frascos", "Qtd_Bisnagas", "Qtd_Saches", "Qtd_Ampolas",
       "Qtd_Genericos", "Qtd_Similares", "Qtd_Novos_Referencia", "Qtd_Biologicos", "Qtd_Fitoterapicos"
@@ -5981,6 +6148,14 @@ async function generateClientCsv(type) {
         escapeCsvCell(f.uf),
         escapeCsvCell(f.cidade),
         escapeCsvCell(f.endereco),
+        escapeCsvCell(f.situacao),
+        escapeCsvCell(f.data_inicio_atividade),
+        escapeCsvCell(f.cnae_principal),
+        escapeCsvCell(f.cnae_descricao),
+        escapeCsvCell(f.capital_social),
+        escapeCsvCell(f.telefone),
+        escapeCsvCell(f.email),
+        escapeCsvCell(f.socios_qsa),
         escapeCsvCell(f.total_meds),
         escapeCsvCell(f.detentoras_set.size),
         escapeCsvCell(detsFormatted),
@@ -6005,10 +6180,17 @@ async function generateClientCsv(type) {
     });
 
   } else if (type === 'empresas') {
-    // Look up staticDataCache.empresas
+    if (typeof staticDataCache !== 'undefined') {
+      if (!staticDataCache.empresas && typeof fetchAndDecryptJson === 'function') {
+        try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch(e) {}
+      }
+    }
+
     const empLookup = {};
     if (typeof staticDataCache !== 'undefined' && staticDataCache.empresas) {
       staticDataCache.empresas.forEach(e => {
+        const cLimpo = (e.cnpj_limpo || '').replace(/\D/g, '');
+        if (cLimpo) empLookup[cLimpo] = e;
         if (e.razao_social) empLookup[e.razao_social.toUpperCase()] = e;
         if (e.nome_fantasia) empLookup[e.nome_fantasia.toUpperCase()] = e;
       });
@@ -6018,7 +6200,8 @@ async function generateClientCsv(type) {
     filteredMeds.forEach(m => {
       const key = m.detentora || 'Desconhecida';
       if (!empMap[key]) {
-        const cached = empLookup[key.toUpperCase()] || {};
+        const cClean = (m.cnpj_detentora_limpo || m.cnpj_detentora || '').replace(/\D/g, '');
+        const cached = empLookup[cClean] || empLookup[key.toUpperCase()] || {};
         empMap[key] = {
           detentora: key,
           cnpj: m.cnpj_detentora || cached.cnpj_formatado || cached.cnpj_limpo || '-',
@@ -6027,12 +6210,14 @@ async function generateClientCsv(type) {
           data_inicio_atividade: cached.data_inicio_atividade || '-',
           uf: cached.uf || m.uf || '-',
           cidade: cached.cidade || '-',
-          endereco: cached.logradouro || cached.endereco_completo || '-',
+          endereco: cached.endereco_completo || cached.logradouro || '-',
+          logradouro: cached.logradouro || '-',
           numero: cached.numero || '-',
           bairro: cached.bairro || '-',
           cep: cached.cep || '-',
           telefone: cached.telefone || '-',
           email: cached.email || '-',
+          website: cached.website || '-',
           cnae_principal: cached.cnae_principal || '-',
           cnae_descricao: cached.cnae_descricao || '-',
           capital_social: cached.capital_social || 0,
@@ -6090,7 +6275,7 @@ async function generateClientCsv(type) {
 
     const headers = [
       "Razao_Social_Detentora", "CNPJ", "Nome_Fantasia", "Situacao_Cadastral", "Data_Inicio_Atividade",
-      "UF", "Municipio", "Endereco_Completo", "Numero", "Bairro", "CEP", "Telefone", "Email",
+      "UF", "Municipio", "Endereco_Completo", "Logradouro", "Numero", "Bairro", "CEP", "Telefone", "Email", "Website",
       "CNAE_Principal", "CNAE_Descricao", "Capital_Social_R$", "Quadro_Societario_QSA", "Total_Medicamentos",
       "Total_Plantas_Fabris_Vinculadas", "Fabricas_Vinculadas",
       "Qtd_Comprimidos", "Qtd_Capsulas", "Qtd_Solucao_Injetavel", "Qtd_Pomadas_Cremes", "Qtd_Suspensao_Gotas", "Qtd_Xaropes_Solucoes",
@@ -6110,11 +6295,13 @@ async function generateClientCsv(type) {
         escapeCsvCell(e.uf),
         escapeCsvCell(e.cidade),
         escapeCsvCell(e.endereco),
+        escapeCsvCell(e.logradouro),
         escapeCsvCell(e.numero),
         escapeCsvCell(e.bairro),
         escapeCsvCell(e.cep),
         escapeCsvCell(e.telefone),
         escapeCsvCell(e.email),
+        escapeCsvCell(e.website),
         escapeCsvCell(e.cnae_principal),
         escapeCsvCell(e.cnae_descricao),
         escapeCsvCell(e.capital_social),
@@ -6143,21 +6330,62 @@ async function generateClientCsv(type) {
     });
 
   } else {
-    // Medicamentos (Catálogo Completo)
+    // Medicamentos (Catálogo Completo Enriquecido com QSA, Endereços e Dados Corporativos)
+    if (typeof staticDataCache !== 'undefined') {
+      if (!staticDataCache.empresas && typeof fetchAndDecryptJson === 'function') {
+        try { staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc'); } catch(e) {}
+      }
+      if (!staticDataCache.fabricas && typeof fetchAndDecryptJson === 'function') {
+        try { staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc'); } catch(e) {}
+      }
+    }
+
+    const empLookup = {};
+    if (typeof staticDataCache !== 'undefined' && staticDataCache.empresas) {
+      staticDataCache.empresas.forEach(e => {
+        const cLimpo = (e.cnpj_limpo || '').replace(/\D/g, '');
+        if (cLimpo) empLookup[cLimpo] = e;
+        if (e.razao_social) empLookup[e.razao_social.toUpperCase()] = e;
+        if (e.nome_fantasia) empLookup[e.nome_fantasia.toUpperCase()] = e;
+      });
+    }
+
+    const fabLookup = {};
+    if (typeof staticDataCache !== 'undefined' && staticDataCache.fabricas) {
+      staticDataCache.fabricas.forEach(f => {
+        if (f.fabrica) fabLookup[f.fabrica.toUpperCase()] = f;
+        const cLimpo = (f.cnpj || '').replace(/\D/g, '');
+        if (cLimpo) fabLookup[cLimpo] = f;
+      });
+    }
+
     const headers = [
       "Nome_Produto", "Principio_Ativo_Substancia", "Apresentacao_CMED", "Preco_Fabrica_PF18_R$", "Preco_Maximo_PMVG18_R$",
-      "Detentora_Marca", "CNPJ_Detentora", "Fabrica_Real", "CNPJ_Fabrica", "Tipo_Fabricante", "Pais_Fabrica",
-      "UF_Fabrica", "Cidade_Fabrica", "Modelo_Producao", "Forma_Farmaceutica", "Embalagem_Primaria",
-      "Categoria_Regulatoria", "Classe_Terapeutica", "Tarja_Sanitaria", "Registro_ANVISA_13", "URL_Consulta_ANVISA"
+      "Preco_Fabrica_Sem_Impostos_R$", "Regime_Preco", "Comercializacao_2024", "Registro_ANVISA_13",
+      "Categoria_Regulatoria", "Classe_Terapeutica", "Tarja_Sanitaria", "Forma_Farmaceutica", "Vias_Administracao",
+      "Embalagem_Primaria", "Embalagem_Secundaria", "Restricao_Prescricao", "Restricao_Uso", "Conservacao",
+      "URL_Consulta_ANVISA", "Modelo_Producao", "Fabrica_Real", "CNPJ_Fabrica", "Tipo_Fabricante", "Pais_Fabrica",
+      "UF_Fabrica", "Cidade_Fabrica", "Endereco_Fabrica", "Detentora_Marca", "CNPJ_Detentora",
+      "Razao_Social_Detentora", "Nome_Fantasia_Detentora", "Situacao_Cadastral_Detentora", "Data_Inicio_Atividade_Detentora",
+      "UF_Detentora", "Municipio_Detentora", "Endereco_Detentora_Completo", "Logradouro_Detentora", "Numero_Detentora",
+      "Bairro_Detentora", "CEP_Detentora", "Telefone_Detentora", "Email_Detentora", "Website_Detentora",
+      "CNAE_Principal_Detentora", "CNAE_Descricao_Detentora", "Capital_Social_Detentora_R$", "Quadro_Societario_QSA_Detentora"
     ];
     rowsOutput.push(headers.join(';'));
 
     filteredMeds.forEach(m => {
-      const cDet = (m.cnpj_detentora || '').replace(/\D/g, '');
-      const cFab = (m.cnpj_fabrica || '').replace(/\D/g, '');
+      const cDet = (m.cnpj_detentora_limpo || m.cnpj_detentora || '').replace(/\D/g, '');
+      const cFab = (m.cnpj_fabrica_limpo || m.cnpj_fabrica || '').replace(/\D/g, '');
       const isPropria = (m.tipo !== 'INTERNACIONAL' && cDet && cFab && cDet === cFab);
       const isImport = (m.tipo === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
-      const modeloProd = isImport ? 'Importação' : (isPropria ? 'Fabricação Própria' : 'Terceirização Nacional (CMO)');
+      const modeloProd = m.modelo_prod || (isImport ? 'Importação' : (isPropria ? 'Fabricação Própria' : 'Terceirização Nacional (CMO)'));
+
+      const emp = empLookup[cDet] || empLookup[(m.detentora || '').toUpperCase()] || {};
+      const fab = fabLookup[cFab] || fabLookup[(m.fabrica || '').toUpperCase()] || {};
+
+      const endFab = m.endereco_fabrica || fab.endereco || (m.endereco && m.endereco !== emp.endereco_completo ? m.endereco : '');
+      const endDet = emp.endereco_completo || emp.logradouro || m.endereco || '';
+      const sociosDet = emp.socios_donos_administradores || emp.socios_resumo || m.socios || '';
 
       rowsOutput.push([
         escapeCsvCell(m.produto),
@@ -6165,22 +6393,49 @@ async function generateClientCsv(type) {
         escapeCsvCell(m.apresentacao),
         escapeCsvCell(m.pf_18),
         escapeCsvCell(m.pmvg_18),
-        escapeCsvCell(m.detentora),
-        escapeCsvCell(m.cnpj_detentora),
+        escapeCsvCell(m.pf_sem_impostos || ''),
+        escapeCsvCell(m.regime_preco || ''),
+        escapeCsvCell(m.comercializacao_2024 || ''),
+        escapeCsvCell(m.registro_13),
+        escapeCsvCell(m.categoria),
+        escapeCsvCell(m.classe),
+        escapeCsvCell(m.tarja),
+        escapeCsvCell(m.forma),
+        escapeCsvCell(m.via_adm || m.vias_administracao || ''),
+        escapeCsvCell(m.embalagem),
+        escapeCsvCell(m.embalagem_sec || m.anvisa_embalagem_secundaria || ''),
+        escapeCsvCell(m.restricao_prescricao || ''),
+        escapeCsvCell(m.restricao_uso || ''),
+        escapeCsvCell(m.conservacao || ''),
+        escapeCsvCell(m.url_anvisa || ''),
+        escapeCsvCell(modeloProd),
         escapeCsvCell(m.fabrica),
         escapeCsvCell(m.cnpj_fabrica),
         escapeCsvCell(m.tipo || 'NACIONAL'),
         escapeCsvCell(m.pais || 'BRASIL'),
         escapeCsvCell(m.uf || '-'),
         escapeCsvCell(m.cidade || '-'),
-        escapeCsvCell(modeloProd),
-        escapeCsvCell(m.forma),
-        escapeCsvCell(m.embalagem),
-        escapeCsvCell(m.categoria),
-        escapeCsvCell(m.classe),
-        escapeCsvCell(m.tarja),
-        escapeCsvCell(m.registro_13),
-        escapeCsvCell(m.url_anvisa || '')
+        escapeCsvCell(endFab),
+        escapeCsvCell(m.detentora),
+        escapeCsvCell(m.cnpj_detentora || emp.cnpj_formatado || emp.cnpj_limpo || ''),
+        escapeCsvCell(emp.razao_social || m.detentora || ''),
+        escapeCsvCell(emp.nome_fantasia || ''),
+        escapeCsvCell(emp.situacao_cadastral || 'ATIVA'),
+        escapeCsvCell(emp.data_inicio_atividade || ''),
+        escapeCsvCell(emp.uf || m.uf || ''),
+        escapeCsvCell(emp.cidade || m.cidade || ''),
+        escapeCsvCell(endDet),
+        escapeCsvCell(emp.logradouro || ''),
+        escapeCsvCell(emp.numero || ''),
+        escapeCsvCell(emp.bairro || ''),
+        escapeCsvCell(emp.cep || ''),
+        escapeCsvCell(emp.telefone || ''),
+        escapeCsvCell(emp.email || ''),
+        escapeCsvCell(emp.website || ''),
+        escapeCsvCell(emp.cnae_principal || m.cnae || ''),
+        escapeCsvCell(emp.cnae_descricao || ''),
+        escapeCsvCell(emp.capital_social || 0),
+        escapeCsvCell(sociosDet)
       ].join(';'));
     });
   }
