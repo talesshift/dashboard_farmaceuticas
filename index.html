@@ -22,7 +22,7 @@
   <script src="https://www.gstatic.com/charts/loader.js"></script>
 
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=20261015_vault3">
   <style>
 /* ==========================================================================
    MODERN LIGHT-THEME PHARMA DASHBOARD - DESIGN SYSTEM
@@ -1984,7 +1984,7 @@ body {
 <body>
 
   <!-- Lock Screen Overlay (Criptografia AES-256 de Ponta a Ponta) -->
-  <div id="crypto-lockscreen" class="crypto-lockscreen-overlay" style="display: none;">
+  <div id="crypto-lockscreen" class="crypto-lockscreen-overlay">
     <div class="crypto-lockscreen-card">
       <div class="crypto-lockscreen-badge">ACESSO RESTRITO • CRIPTOGRAFIA AES-256</div>
       <h1 class="crypto-lockscreen-title">Inteligência Farmacêutica</h1>
@@ -2057,12 +2057,7 @@ body {
             <span>Fitoterápicos & Especiais</span>
           </button>
         </li>
-        <li class="nav-item">
-          <button data-tab="tab-sql">
-            <span class="nav-icon">[S]</span>
-            <span>SQL Studio Interativo</span>
-          </button>
-        </li>
+
         <li class="nav-item">
           <button data-tab="tab-schema">
             <span class="nav-icon">[B]</span>
@@ -3407,61 +3402,7 @@ body {
 
       </section>
 
-      <!-- ========================================================================= -->
-      <!-- TAB 4: SQL STUDIO INTERATIVO -->
-      <!-- ========================================================================= -->
-      <section id="tab-sql" class="tab-content">
-        
-        <div class="sql-container">
-          <div class="sql-editor-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="font-size: 16px; font-weight: 700;">Consulta SQL em Tempo Real (SQLite)</h3>
-              <span style="font-size: 12px; color: var(--text-muted);">Banco Mestre: <code>industria_farmaceutica_master.db</code></span>
-            </div>
 
-            <!-- Presets -->
-            <div class="sql-presets">
-              <span style="font-size: 12px; font-weight: 600; color: var(--text-main); margin-right: 6px;">Exemplos Prontos:</span>
-              <button class="preset-chip" data-sql="SELECT produto_nome, detentora_marca, fabrica_real, pais_fabrica, pf_18 FROM vw_catalogo_completo WHERE tipo_fabricante = 'INTERNACIONAL' ORDER BY pf_18 DESC LIMIT 20;">
-                Remédios Importados Mais Caros
-              </button>
-              <button class="preset-chip" data-sql="SELECT fabrica_real, pais_fabrica, count(DISTINCT registro_13) as total_medicamentos FROM vw_catalogo_completo WHERE pais_fabrica = 'ÍNDIA' GROUP BY fabrica_real ORDER BY total_medicamentos DESC;">
-                Maiores Fábricas Indianas que Vendem no Brasil
-              </button>
-              <button class="preset-chip" data-sql="SELECT detentora_marca, fabrica_real, modelo_producao, total_medicamentos FROM vw_terceirizacao_marcas WHERE modelo_producao LIKE '%TERCEIRIZACAO%' ORDER BY total_medicamentos DESC LIMIT 20;">
-                Principais Terceirizações Nacionais (CMO)
-              </button>
-              <button class="preset-chip" data-sql="SELECT razao_social, capital_social, total_produtos_cmed, socios_donos_administradores FROM empresas_detentoras ORDER BY capital_social DESC LIMIT 15;">
-                Laboratórios com Maior Capital Social
-              </button>
-            </div>
-
-            <textarea id="sql-query-input" class="sql-textarea" placeholder="Digite sua consulta SQL aqui...">SELECT produto_nome, detentora_marca, fabrica_real, pais_fabrica, pf_18 
-FROM vw_catalogo_completo 
-WHERE pais_fabrica != 'BRASIL' 
-ORDER BY pf_18 DESC 
-LIMIT 20;</textarea>
-
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div id="sql-status" style="font-size: 13px; color: var(--text-muted);">Pronto para executar.</div>
-              <button id="btn-run-sql" class="btn-primary">
-                ▶ Executar SQL
-              </button>
-            </div>
-          </div>
-
-          <!-- SQL Results Card -->
-          <div class="data-card">
-            <div class="data-card-header">
-              <h4 style="font-size: 14px; font-weight: 700;">Resultado da Consulta</h4>
-            </div>
-            <div id="sql-results">
-              <div style="padding: 40px; text-align: center; color: var(--text-muted);">Execute uma consulta acima para ver os resultados aqui.</div>
-            </div>
-          </div>
-        </div>
-
-      </section>
 
       <!-- ========================================================================= -->
       <!-- TAB 5: ARQUITETURA DO BANCO DE DADOS -->
@@ -3793,6 +3734,6 @@ LIMIT 20;</textarea>
   </div>
 
   <!-- Custom Scripts -->
-  <script src="js/dashboard.js"></script>
+  <script src="js/dashboard.js?v=20261015_vault3"></script>
 </body>
 </html>

@@ -2,12 +2,8 @@
 // ============================================================================
 // GITHUB PAGES / OFFLINE STATIC DATA ADAPTER WITH AES-256-GCM DECRYPTION
 // ============================================================================
-let isStaticMode = (
-  window.location.protocol === 'file:' || 
-  window.location.hostname.includes('github.io') ||
-  window.location.hostname.includes('pages.dev') ||
-  window.location.port !== '5000'
-);
+const originalFetch = window.fetch;
+let isStaticMode = true;
 
 let sessionPassword = sessionStorage.getItem('_farma_vault_pwd') || '';
 let staticDataCache = {
@@ -127,38 +123,34 @@ window.unlockDashboardWithPassword = async function() {
   }
 };
 
-document.addEventListener('DOMContentLoaded', async () => {
-  if (!isStaticMode) {
-    const lockScreen = document.getElementById('crypto-lockscreen');
-    if (lockScreen) lockScreen.style.display = 'none';
-    if (typeof window.startDashboardApp === 'function') window.startDashboardApp();
-    return;
-  }
+async function initVaultApp() {
+  const lockScreen = document.getElementById('crypto-lockscreen');
+  const pwdInput = document.getElementById('crypto-password-input');
 
-  // Verificar se há senha salva na sessão
   const savedPwd = sessionStorage.getItem('_farma_vault_pwd');
   if (savedPwd) {
     sessionPassword = savedPwd;
     try {
       staticDataCache.stats = await fetchAndDecryptJson('data/stats.json.enc');
-      const lockScreen = document.getElementById('crypto-lockscreen');
       if (lockScreen) lockScreen.style.display = 'none';
-      if (typeof window.startDashboardApp === 'function') window.startDashboardApp();
+      if (typeof window.startDashboardApp === 'function') {
+        window.startDashboardApp();
+      }
       return;
     } catch (e) {
+      console.warn('Chave em sessao invalida ou expirada:', e);
       sessionStorage.removeItem('_farma_vault_pwd');
       sessionPassword = '';
     }
   }
 
-  // Exibir tela de bloqueio
-  const lockScreen = document.getElementById('crypto-lockscreen');
   if (lockScreen) {
     lockScreen.style.display = 'flex';
-    const pwdInput = document.getElementById('crypto-password-input');
-    if (pwdInput) pwdInput.focus();
   }
-});
+  if (pwdInput) {
+    pwdInput.focus();
+  }
+}
 
 async function getStaticCatalogo() {
   if (staticDataCache.catalogo) return staticDataCache.catalogo;
@@ -184,12 +176,15 @@ function matchFieldSearches(m, searches) {
     if (!v) return true;
     const vClean = v.replace(/[^0-9]/g, '');
 
-    if (fld === 'endereco' || fld === 'cidade') {
+    if (fld === 'endereco') {
+      const endStr = (m.endereco || '').toLowerCase();
       const cid = (m.cidade || '').toLowerCase();
       const uf = (m.uf || '').toLowerCase();
-      const fab = (m.fabrica || '').toLowerCase();
-      const det = (m.detentora || '').toLowerCase();
-      return cid.includes(v) || uf.includes(v) || fab.includes(v) || det.includes(v);
+      const pais = (m.pais || '').toLowerCase();
+      return endStr.includes(v) || cid.includes(v) || uf.includes(v) || pais.includes(v);
+    }
+    if (fld === 'cidade') {
+      return (m.cidade || '').toLowerCase().includes(v);
     }
     if (fld === 'uf') {
       const u = (m.uf || '').toLowerCase();
@@ -210,6 +205,16 @@ function matchFieldSearches(m, searches) {
     if (fld === 'substancia') {
       return (m.substancia || '').toLowerCase().includes(v);
     }
+    if (fld === 'socios') {
+      return (m.socios || '').toLowerCase().includes(v);
+    }
+    if (fld === 'cnpj') {
+      const cd = m.cnpj_detentora_limpo || (m.cnpj_detentora || '').replace(/[^0-9]/g, '');
+      const cf = m.cnpj_fabrica_limpo || (m.cnpj_fabrica || '').replace(/[^0-9]/g, '');
+      const rawCd = (m.cnpj_detentora || '').toLowerCase();
+      const rawCf = (m.cnpj_fabrica || '').toLowerCase();
+      return (vClean && (cd.includes(vClean) || cf.includes(vClean))) || rawCd.includes(v) || rawCf.includes(v);
+    }
     if (fld === 'classe') {
       return (m.classe || '').toLowerCase().includes(v);
     }
@@ -222,33 +227,30 @@ function matchFieldSearches(m, searches) {
     if (fld === 'tarja') {
       return (m.tarja || '').toLowerCase().includes(v);
     }
+    if (fld === 'modelo') {
+      const mod = (m.modelo_prod || '').toLowerCase();
+      if (v.includes('propria') || v.includes('própria')) return mod.includes('própria') || mod.includes('propria');
+      if (v.includes('import')) return mod.includes('import');
+      if (v.includes('terceiriz') || v.includes('cmo')) return mod.includes('terceiriz') || mod.includes('cmo');
+      return mod.includes(v);
+    }
     if (fld === 'registro') {
       return (m.registro_13 || '').includes(v);
     }
-    if (fld === 'cnpj') {
-      const cd = m.cnpj_detentora_limpo || (m.cnpj_detentora || '').replace(/[^0-9]/g, '');
-      const cf = m.cnpj_fabrica_limpo || (m.cnpj_fabrica || '').replace(/[^0-9]/g, '');
-      return cd.includes(vClean || v) || cf.includes(vClean || v);
+    if (fld === 'cnae') {
+      return (m.cnae || '').toLowerCase().includes(v);
     }
-    if (fld === 'modelo') {
-      if ((v.includes('propria') || v.includes('própria')) && isPropria) return true;
-      if (v.includes('import') && isImport) return true;
-      if ((v.includes('terceiriz') || v.includes('cmo')) && isTerceiriz) return true;
-      return false;
-    }
-    return (m.produto || '').toLowerCase().includes(v) ||
-           (m.substancia || '').toLowerCase().includes(v) ||
-           (m.detentora || '').toLowerCase().includes(v) ||
-           (m.fabrica || '').toLowerCase().includes(v) ||
-           (m.classe || '').toLowerCase().includes(v) ||
-           (m.cidade || '').toLowerCase().includes(v) ||
-           (m.uf || '').toLowerCase().includes(v) ||
-           (m.registro_13 || '').includes(v);
+
+    const allBlob = [
+      m.produto, m.substancia, m.detentora, m.fabrica, m.endereco, m.cidade, m.uf, m.pais,
+      m.classe, m.forma, m.embalagem, m.tarja, m.modelo_prod, m.registro_13, m.cnae, m.socios,
+      m.cnpj_detentora, m.cnpj_fabrica
+    ].filter(Boolean).join(' ').toLowerCase();
+    return allBlob.includes(v);
   });
 }
 
 // Interceptar global fetch para decifrar os arquivos binários sob demanda
-const originalFetch = window.fetch;
 window.fetch = async function(url, options) {
   const urlStr = url.toString();
   
@@ -1677,381 +1679,7 @@ window.fetch = async function(url, options) {
       }), { headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Static SQL Studio handling (Universal in-memory SQL simulation with dynamic column extraction)
-    if (urlStr.includes('/api/sql') || urlStr.includes('api/sql')) {
-      let reqBody = {};
-      try {
-        if (options && options.body) {
-          reqBody = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
-        }
-      } catch (e) {}
 
-      const rawQ = (reqBody.query || '').trim();
-      const qNorm = rawQ.toUpperCase().replace(/\s+/g, ' ');
-
-      if (!rawQ) {
-        return new Response(JSON.stringify({ error: "Query vazia" }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
-      if (!qNorm.startsWith("SELECT") && !qNorm.startsWith("WITH") && !qNorm.startsWith("EXPLAIN")) {
-        return new Response(JSON.stringify({ error: "Apenas consultas SELECT de leitura sao permitidas" }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
-      const t0 = performance.now();
-
-      function parseSelectedColumns(sql, sampleRow, defaultCols) {
-        const clean = sql.trim().replace(/;\s*$/, '');
-        const selectMatch = clean.match(/SELECT\s+(?:DISTINCT\s+)?([\s\S]+?)\s+FROM\s+/i);
-
-        let availableCols = defaultCols;
-        if (sampleRow && typeof sampleRow === 'object') {
-          const keys = Object.keys(sampleRow).filter(k => {
-            const v = sampleRow[k];
-            return typeof v !== 'object' || v === null;
-          });
-          if (keys.length > 0) availableCols = keys;
-        }
-
-        if (!selectMatch) return availableCols.map(c => ({ expr: c, alias: c }));
-
-        let rawCols = selectMatch[1].trim();
-        if (rawCols === '*' || rawCols.startsWith('*')) {
-          return availableCols.map(c => ({ expr: c, alias: c }));
-        }
-
-        const rawList = [];
-        let current = '';
-        let depth = 0;
-        for (let i = 0; i < rawCols.length; i++) {
-          const char = rawCols[i];
-          if (char === '(') depth++;
-          else if (char === ')') depth--;
-          if (char === ',' && depth === 0) {
-            if (current.trim()) rawList.push(current.trim());
-            current = '';
-          } else {
-            current += char;
-          }
-        }
-        if (current.trim()) rawList.push(current.trim());
-        if (rawList.length === 0) return availableCols.map(c => ({ expr: c, alias: c }));
-
-        return rawList.map(item => {
-          let raw = item.trim();
-          if (raw.toUpperCase().startsWith('DISTINCT ')) {
-            raw = raw.substring(9).trim();
-          }
-
-          let expr = raw;
-          let alias = raw;
-
-          const funcMatch = raw.match(/^([a-zA-Z0-9_]+\s*\([\s\S]*\))\s+(?:AS\s+)?([a-zA-Z0-9_]+)$/i);
-          if (funcMatch) {
-            expr = funcMatch[1].trim();
-            alias = funcMatch[2].trim();
-          } else {
-            const asMatch = raw.match(/^(.*?)\s+(?:AS\s+)?([a-zA-Z0-9_]+)$/i);
-            if (asMatch && !raw.includes('(')) {
-              expr = asMatch[1].trim();
-              alias = asMatch[2].trim();
-            }
-          }
-
-          let cleanAlias = alias;
-          if (cleanAlias.includes('.')) {
-            cleanAlias = cleanAlias.split('.').pop().trim();
-          }
-          return { expr, alias: cleanAlias, rawExpr: raw };
-        });
-      }
-
-      function extractValue(row, colExpr, colAlias) {
-        if (!row) return '-';
-        const cleanAlias = (colAlias || '').includes('.') ? colAlias.split('.').pop().trim() : (colAlias || '').trim();
-        const cleanExpr = (colExpr || '').includes('.') ? colExpr.split('.').pop().trim() : (colExpr || '').trim();
-
-        if (row[cleanAlias] !== undefined && row[cleanAlias] !== null) return row[cleanAlias];
-        if (row[cleanExpr] !== undefined && row[cleanExpr] !== null) return row[cleanExpr];
-        if (row[colAlias] !== undefined && row[colAlias] !== null) return row[colAlias];
-        if (row[colExpr] !== undefined && row[colExpr] !== null) return row[colExpr];
-
-        const normAlias = cleanAlias.toLowerCase().replace(/[^a-z0-9_]/g, '');
-        const normExpr = cleanExpr.toLowerCase().replace(/[^a-z0-9_]/g, '');
-
-        for (const k of Object.keys(row)) {
-          const nk = k.toLowerCase().replace(/[^a-z0-9_]/g, '');
-          if (nk === normAlias || nk === normExpr) return row[k];
-        }
-
-        // Canonical cross-field aliases
-        if (normAlias.includes('count') || normExpr.includes('count') || normAlias.includes('total') || normExpr.includes('total')) {
-          if (row.total_medicamentos !== undefined) return row.total_medicamentos;
-          if (row.total_meds !== undefined) return row.total_meds;
-          if (row.total_produtos_cmed !== undefined) return row.total_produtos_cmed;
-          if (row.total_produtos !== undefined) return row.total_produtos;
-          if (row.total_apresentacoes !== undefined) return row.total_apresentacoes;
-          if (row.total_marcas !== undefined) return row.total_marcas;
-          if (row.total_detentoras !== undefined) return row.total_detentoras;
-          if (row.total !== undefined) return row.total;
-          return 1;
-        }
-
-        if (normAlias.includes('produto') || normExpr.includes('produto')) return row.produto || row.produto_nome || row.nome_produto || '-';
-        if (normAlias.includes('detentora') || normExpr.includes('detentora') || normAlias.includes('laboratorio')) return row.detentora || row.detentora_marca || row.razao_social || '-';
-        if (normAlias.includes('fabrica') || normExpr.includes('fabrica')) return row.fabrica || row.fabrica_real || row.razao_social_fabricante || '-';
-        if (normAlias.includes('pais') || normExpr.includes('pais')) return row.pais || row.pais_fabrica || row.pais_fabricante || 'BRASIL';
-        if (normAlias.includes('uf') || normExpr.includes('uf')) return row.uf || row.uf_fabrica || row.uf_fabricante || row.uf_detentora || '-';
-        if (normAlias.includes('cidade') || normExpr.includes('cidade')) return row.cidade || row.cidade_fabrica || row.cidade_fabricante || '-';
-        if (normAlias.includes('tipo') || normExpr.includes('tipo')) return row.tipo || row.tipo_fabricante || 'NACIONAL';
-        if (normAlias.includes('capital') || normExpr.includes('capital')) return row.capital_social || 0;
-        if (normAlias.includes('socio') || normExpr.includes('socio')) return row.socios_donos_administradores || row.socios || '-';
-        if (normAlias.includes('pf_18') || normExpr.includes('pf_18') || normAlias.includes('preco')) return row.pf_18 || row.preco_medio_pf18 || 0;
-        if (normAlias.includes('pmvg') || normExpr.includes('pmvg')) return row.pmvg_18 || 0;
-        if (normAlias.includes('registro') || normExpr.includes('registro')) return row.registro_13 || row.numero_registro_base || '-';
-        if (normAlias.includes('cnpj') || normExpr.includes('cnpj')) return row.cnpj || row.cnpj_detentora || row.cnpj_fabrica || row.cnpj_formatado || row.cnpj_limpo || '-';
-        if (normAlias.includes('substancia') || normExpr.includes('substancia') || normAlias.includes('principio') || normAlias.includes('molecula')) return row.substancia || row.principio_ativo || '-';
-        if (normAlias.includes('classe') || normExpr.includes('classe')) return row.classe || row.classe_terapeutica || '-';
-        if (normAlias.includes('categoria') || normExpr.includes('categoria')) return row.categoria || row.categoria_regulatoria || '-';
-        if (normAlias.includes('tarja') || normExpr.includes('tarja')) return row.tarja || row.anvisa_tarja || '-';
-        if (normAlias.includes('forma') || normExpr.includes('forma')) return row.forma || row.anvisa_forma_farmaceutica || '-';
-        if (normAlias.includes('embalagem') || normExpr.includes('embalagem')) return row.embalagem || row.anvisa_embalagem_primaria || '-';
-        if (normAlias.includes('telefone') || normExpr.includes('telefone')) return row.telefone || '-';
-        if (normAlias.includes('email') || normExpr.includes('email')) return row.email || '-';
-        if (normAlias.includes('modelo') || normExpr.includes('modelo')) return row.modelo_prod || row.modelo_producao || 'Fabricação Própria';
-
-        return '-';
-      }
-
-      let columns = [];
-      let rows = [];
-
-      try {
-        if (qNorm.includes('EMPRESAS_DETENTORAS') || qNorm.includes('ENTIDADES_SOCIETARIAS')) {
-          if (!staticDataCache.empresas) {
-            staticDataCache.empresas = await fetchAndDecryptJson('data/empresas.json.enc');
-          }
-          let source = [...(staticDataCache.empresas || [])];
-          const defaultCols = ['razao_social', 'capital_social', 'total_produtos_cmed', 'uf', 'socios_donos_administradores'];
-
-          if (qNorm.includes('CAPITAL_SOCIAL DESC')) {
-            source.sort((a, b) => (b.capital_social || 0) - (a.capital_social || 0));
-          } else if (qNorm.includes('TOTAL_PRODUTOS_CMED DESC') || qNorm.includes('TOTAL_PRODUTOS DESC')) {
-            source.sort((a, b) => (b.total_produtos_cmed || 0) - (a.total_produtos_cmed || 0));
-          } else {
-            source.sort((a, b) => (a.razao_social || '').localeCompare(b.razao_social || ''));
-          }
-
-          let lim = 20;
-          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
-          if (limMatch) lim = parseInt(limMatch[1]);
-
-          const sample = source[0] || {};
-          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
-          columns = reqCols.map(c => c.alias);
-          rows = source.slice(0, lim).map(e => reqCols.map(c => extractValue(e, c.expr, c.alias)));
-
-        } else if (qNorm.includes('ANVISA_FABRICANTES') || qNorm.includes('FABRICAS') || (qNorm.includes('FABRICA_REAL') && qNorm.includes('GROUP BY'))) {
-          if (!staticDataCache.fabricas) {
-            staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc');
-          }
-          let source = [...(staticDataCache.fabricas || [])];
-          const defaultCols = ['fabrica_real', 'tipo_fabricante', 'pais_fabrica', 'uf_fabrica', 'total_medicamentos', 'total_detentoras'];
-
-          if (qNorm.includes("PAIS_FABRICA = 'ÍNDIA'") || qNorm.includes("PAIS_FABRICA = 'INDIA'") || qNorm.includes("'IND'")) {
-            source = source.filter(f => (f.pais || '').toUpperCase().includes('IND'));
-          } else if (qNorm.includes("TIPO_FABRICANTE = 'NACIONAL'") || qNorm.includes("TIPO = 'NACIONAL'")) {
-            source = source.filter(f => (f.tipo || '').toUpperCase() === 'NACIONAL');
-          } else if (qNorm.includes("TIPO_FABRICANTE = 'INTERNACIONAL'") || qNorm.includes("TIPO = 'INTERNACIONAL'")) {
-            source = source.filter(f => (f.tipo || '').toUpperCase() === 'INTERNACIONAL');
-          }
-
-          if (qNorm.includes('TOTAL_MEDICAMENTOS DESC') || qNorm.includes('TOTAL_MEDS DESC') || qNorm.includes('COUNT(')) {
-            source.sort((a, b) => (b.total_meds || 0) - (a.total_meds || 0));
-          } else if (qNorm.includes('TOTAL_DETENTORAS DESC')) {
-            source.sort((a, b) => (b.total_detentoras || 0) - (a.total_detentoras || 0));
-          }
-
-          let lim = 20;
-          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
-          if (limMatch) lim = parseInt(limMatch[1]);
-
-          const sample = source[0] || {};
-          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
-          columns = reqCols.map(c => c.alias);
-          rows = source.slice(0, lim).map(f => reqCols.map(c => extractValue(f, c.expr, c.alias)));
-
-        } else if (qNorm.includes('VW_TERCEIRIZACAO_MARCAS')) {
-          if (!staticDataCache.fabricas) {
-            staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc');
-          }
-          const defaultCols = ['detentora_marca', 'fabrica_real', 'modelo_producao', 'total_medicamentos'];
-          let tRows = [];
-          (staticDataCache.fabricas || []).forEach(f => {
-            (f.detentoras_list || []).forEach(d => {
-              const dName = typeof d === 'string' ? d : d.nome;
-              if (dName && dName !== f.fabrica) {
-                tRows.push({
-                  detentora_marca: dName,
-                  fabrica_real: f.fabrica,
-                  modelo_producao: f.tipo === 'NACIONAL' ? 'TERCEIRIZACAO INDUSTRIAL NACIONAL (CMO)' : 'IMPORTACAO',
-                  total_medicamentos: f.total_meds || 1
-                });
-              }
-            });
-          });
-          tRows.sort((a, b) => b.total_medicamentos - a.total_medicamentos);
-          let lim = 20;
-          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
-          if (limMatch) lim = parseInt(limMatch[1]);
-
-          const sample = tRows[0] || {};
-          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
-          columns = reqCols.map(c => c.alias);
-          rows = tRows.slice(0, lim).map(item => reqCols.map(c => extractValue(item, c.expr, c.alias)));
-
-        } else if (qNorm.includes('VW_MEDICAMENTOS_ESPECIAIS')) {
-          if (!staticDataCache.especiais) {
-            staticDataCache.especiais = await fetchAndDecryptJson('data/especiais.json.enc');
-          }
-          const defaultCols = ['nome_produto', 'categoria_regulatoria', 'principio_ativo', 'razao_social_detentora', 'total_apresentacoes'];
-          let source = [...(staticDataCache.especiais || [])];
-          let lim = 20;
-          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
-          if (limMatch) lim = parseInt(limMatch[1]);
-
-          const sample = source[0] || {};
-          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
-          columns = reqCols.map(c => c.alias);
-          rows = source.slice(0, lim).map(e => reqCols.map(c => extractValue(e, c.expr, c.alias)));
-
-        } else {
-          const defaultCols = ['produto_nome', 'detentora_marca', 'fabrica_real', 'pais_fabrica', 'pf_18'];
-          let source = [];
-          if (staticDataCache.catalogo) {
-            source = staticDataCache.catalogo;
-          } else {
-            try {
-              source = await getStaticCatalogo();
-            } catch (errCat) {
-              if (!staticDataCache.fabricas) {
-                staticDataCache.fabricas = await fetchAndDecryptJson('data/fabricas.json.enc');
-              }
-              source = (staticDataCache.fabricas || []).slice(0, 50).map(f => ({
-                produto: 'Medicamento Registrado',
-                produto_nome: 'Medicamento Registrado',
-                detentora: (f.detentoras_list && f.detentoras_list[0] ? f.detentoras_list[0].nome : 'Laboratorio Farmaceutico'),
-                detentora_marca: (f.detentoras_list && f.detentoras_list[0] ? f.detentoras_list[0].nome : 'Laboratorio Farmaceutico'),
-                fabrica: f.fabrica,
-                fabrica_real: f.fabrica,
-                pais: f.pais,
-                pais_fabrica: f.pais,
-                pf_18: 45.50
-              }));
-            }
-          }
-
-          let filtered = [...source];
-          if (qNorm.includes("TIPO_FABRICANTE = 'INTERNACIONAL'") || qNorm.includes("PAIS_FABRICA != 'BRASIL'")) {
-            filtered = filtered.filter(m => (m.tipo || '').toUpperCase() === 'INTERNACIONAL' || (m.pais && m.pais !== 'BRASIL'));
-          }
-
-          if (qNorm.includes("PAIS_FABRICA = 'ÍNDIA'") || qNorm.includes("PAIS_FABRICA = 'INDIA'") || qNorm.includes("'IND'")) {
-            filtered = filtered.filter(m => (m.pais || '').toUpperCase().includes('IND'));
-          }
-
-          if (qNorm.includes('GROUP BY')) {
-            const groupMatch = qNorm.match(/GROUP\s+BY\s+([a-zA-Z0-9_,\.\s]+?)(?:\s+ORDER|\s+LIMIT|;|$)/i);
-            if (groupMatch) {
-              const groupColRaw = groupMatch[1].trim().split(',')[0].trim();
-              const groupCol = groupColRaw.includes('.') ? groupColRaw.split('.').pop().trim() : groupColRaw;
-              const groups = {};
-              filtered.forEach(item => {
-                const grpVal = extractValue(item, groupCol, groupCol) || 'Outros';
-                if (!groups[grpVal]) {
-                  groups[grpVal] = {
-                    key: grpVal,
-                    sample: item,
-                    items: [],
-                    distinctMeds: new Set(),
-                    distinctEmps: new Set()
-                  };
-                }
-                groups[grpVal].items.push(item);
-                if (item.registro_13) groups[grpVal].distinctMeds.add(item.registro_13);
-                if (item.detentora) groups[grpVal].distinctEmps.add(item.detentora);
-              });
-
-              filtered = Object.values(groups).map(g => {
-                const agg = { ...g.sample };
-                agg[groupCol] = g.key;
-                agg.total_medicamentos = g.distinctMeds.size || g.items.length;
-                agg.total_meds = g.distinctMeds.size || g.items.length;
-                agg.total_apresentacoes = g.items.length;
-                agg.total_marcas = g.distinctEmps.size || 1;
-                agg.total_detentoras = g.distinctEmps.size || 1;
-                agg.count = g.items.length;
-                return agg;
-              });
-
-              if (qNorm.includes('ORDER BY') && (qNorm.includes('DESC') || qNorm.includes('ASC'))) {
-                filtered.sort((a, b) => {
-                  const valA = a.total_medicamentos || a.count || 0;
-                  const valB = b.total_medicamentos || b.count || 0;
-                  return qNorm.includes('ASC') ? valA - valB : valB - valA;
-                });
-              }
-            }
-          } else {
-            if (qNorm.includes('ORDER BY PF_18 DESC')) {
-              filtered.sort((a, b) => (b.pf_18 || 0) - (a.pf_18 || 0));
-            } else if (qNorm.includes('ORDER BY PF_18 ASC')) {
-              filtered.sort((a, b) => (a.pf_18 || 0) - (b.pf_18 || 0));
-            }
-          }
-
-          let lim = 20;
-          const limMatch = qNorm.match(/LIMIT\s+(\d+)/);
-          if (limMatch) lim = parseInt(limMatch[1]);
-
-          const sample = filtered[0] || {};
-          const reqCols = parseSelectedColumns(rawQ, sample, defaultCols);
-          columns = reqCols.map(c => c.alias);
-          rows = filtered.slice(0, lim).map(m => reqCols.map(c => extractValue(m, c.expr, c.alias)));
-        }
-
-        if (qNorm.includes('SELECT DISTINCT')) {
-          const seen = new Set();
-          rows = rows.filter(r => {
-            const key = JSON.stringify(r);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
-        }
-
-        const t1 = performance.now();
-        return new Response(JSON.stringify({
-          columns,
-          rows,
-          total_rows: rows.length,
-          execution_time_ms: Math.round((t1 - t0) * 10) / 10
-        }), { headers: { 'Content-Type': 'application/json' } });
-
-      } catch (err) {
-        return new Response(JSON.stringify({
-          columns: ['status', 'detalhe'],
-          rows: [['Simulacao Concluida', `Consulta processada pelo motor estatico: ${err}`]],
-          total_rows: 1,
-          execution_time_ms: 10.0
-        }), { headers: { 'Content-Type': 'application/json' } });
-      }
-    }
   }
 
   // Fallback to real fetch (for local server mode)
@@ -2183,7 +1811,6 @@ function startDashboardApp() {
   loadFabricas();
   loadEspeciais();
   initSearchAndFilters();
-  initSqlStudio();
   initOverviewToolbar();
   initNetworkToggles();
   syncChartHoverUI();
@@ -2221,7 +1848,6 @@ function initNavigation() {
         'tab-empresas': { title: 'Laboratórios & Quadro Societário', sub: '260 laboratórios farmacêuticos com dados cadastrais, donos e capital social' },
         'tab-fabricas': { title: 'Fábricas & Plantas Produtivas', sub: '894 plantas industriais homologadas pela ANVISA e marcas atendidas' },
         'tab-especiais': { title: 'Medicamentos Especiais & Fitoterápicos', sub: 'Fitoterápicos, Dinamizados, Biológicos, Específicos e Radiofármacos regulados pela ANVISA' },
-        'tab-sql': { title: 'SQL Studio Interativo', sub: 'Execute consultas analíticas customizadas diretamente no banco SQLite' },
         'tab-schema': { title: 'Arquitetura do Banco Mestre', sub: 'Estrutura relacional unificada e documentação dos modelos de dados' }
       };
 
@@ -5693,67 +5319,7 @@ async function loadEspeciais() {
   }
 }
 
-// -------------------------------------------------------------
-// SQL Studio
-// -------------------------------------------------------------
-function initSqlStudio() {
-  const runBtn = document.getElementById('btn-run-sql');
-  const textarea = document.getElementById('sql-query-input');
-  const resultsContainer = document.getElementById('sql-results');
-  const statusEl = document.getElementById('sql-status');
 
-  runBtn.addEventListener('click', async () => {
-    const query = textarea.value.trim();
-    if (!query) return;
-
-    statusEl.innerText = 'Executando consulta SQL no banco SQLite...';
-    resultsContainer.innerHTML = '';
-
-    try {
-      const res = await fetch('/api/sql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
-      const data = await res.json();
-
-      if (data.error) {
-        statusEl.innerHTML = `<span style="color: var(--danger);">Erro: ${data.error}</span>`;
-        return;
-      }
-
-      statusEl.innerHTML = `Consulta executada. Retornadas <strong>${data.total_rows} linhas</strong> em <strong>${data.execution_time_ms} ms</strong>.`;
-
-      let tableHtml = '<div class="table-responsive"><table class="modern-table"><thead><tr>';
-      data.columns.forEach(col => { tableHtml += `<th>${col}</th>`; });
-      tableHtml += '</tr></thead><tbody>';
-
-      data.rows.forEach(row => {
-        tableHtml += '<tr>';
-        row.forEach(val => {
-          let formatted = val;
-          if (typeof val === 'number') formatted = formatNumber(val);
-          tableHtml += `<td>${formatted !== null ? formatted : '-'}</td>`;
-        });
-        tableHtml += '</tr>';
-      });
-
-      tableHtml += '</tbody></table></div>';
-      resultsContainer.innerHTML = tableHtml;
-
-    } catch (err) {
-      statusEl.innerHTML = `<span style="color: var(--danger);">Erro de comunicação com o servidor: ${err}</span>`;
-    }
-  });
-
-  document.querySelectorAll('.preset-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const sql = chip.getAttribute('data-sql');
-      textarea.value = sql;
-      runBtn.click();
-    });
-  });
-}
 
 // -------------------------------------------------------------
 // MODAL VINCULOS INDUSTRIAIS (INDÚSTRIAS x FÁBRICAS)
@@ -6130,7 +5696,7 @@ async function generateClientCsv(type) {
   }
 
   // Helper matching functions
-  const norm = (s) => (s || '').toString().toLowerCase().trim();
+  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
   function matchForma(mForma, target) {
     if (!target || target === 'ALL') return true;
@@ -6266,31 +5832,56 @@ async function generateClientCsv(type) {
     // Field-specific search filters (stackable)
     if (activeFieldSearches && activeFieldSearches.length > 0) {
       const matchesAll = activeFieldSearches.every(fs => {
-        const fld = (fs.field || 'all').toLowerCase();
+        const fld = (fs.field || 'all').toLowerCase().trim();
         const v = norm(fs.val);
         if (!v) return true;
-        if (fld === 'endereco' || fld === 'cidade') {
-          return norm(m.cidade).includes(v) || norm(m.uf).includes(v) || norm(m.detentora).includes(v) || norm(m.fabrica).includes(v);
+        const vClean = (fs.val || '').replace(/[^0-9]/g, '');
+
+        if (fld === 'endereco') {
+          const endStr = norm(m.endereco);
+          const cid = norm(m.cidade);
+          const uf = norm(m.uf);
+          const pais = norm(m.pais);
+          return endStr.includes(v) || cid.includes(v) || uf.includes(v) || pais.includes(v);
         }
-        if (fld === 'uf') return norm(m.uf) === v || norm(m.uf).includes(v);
+        if (fld === 'cidade') return norm(m.cidade).includes(v);
+        if (fld === 'uf') {
+          const u = norm(m.uf);
+          return u === v || u.includes(v);
+        }
         if (fld === 'pais') return norm(m.pais).includes(v);
         if (fld === 'empresa') return norm(m.detentora).includes(v);
         if (fld === 'fabrica') return norm(m.fabrica).includes(v);
         if (fld === 'produto') return norm(m.produto).includes(v);
         if (fld === 'substancia') return norm(m.substancia).includes(v);
+        if (fld === 'socios') return norm(m.socios).includes(v);
+        if (fld === 'cnpj') {
+          const cd = (m.cnpj_detentora_limpo || norm(m.cnpj_detentora).replace(/[^0-9]/g, ''));
+          const cf = (m.cnpj_fabrica_limpo || norm(m.cnpj_fabrica).replace(/[^0-9]/g, ''));
+          const rawCd = norm(m.cnpj_detentora);
+          const rawCf = norm(m.cnpj_fabrica);
+          return (vClean && (cd.includes(vClean) || cf.includes(vClean))) || rawCd.includes(v) || rawCf.includes(v);
+        }
         if (fld === 'classe') return norm(m.classe).includes(v);
         if (fld === 'forma') return norm(m.forma).includes(v);
         if (fld === 'embalagem') return norm(m.embalagem).includes(v);
         if (fld === 'tarja') return norm(m.tarja).includes(v);
-        if (fld === 'registro') return norm(m.registro_13).includes(v);
-        if (fld === 'cnpj') return norm(m.cnpj_detentora).includes(v) || norm(m.cnpj_fabrica).includes(v);
         if (fld === 'modelo') {
-          if (v.includes('propria') && isPropria) return true;
-          if (v.includes('import') && isImport) return true;
-          if ((v.includes('terceiriz') || v.includes('cmo')) && isTerceiriz) return true;
-          return false;
+          const mod = norm(m.modelo_prod);
+          if (v.includes('propria')) return isPropria || mod.includes('propria');
+          if (v.includes('import')) return isImport || mod.includes('import');
+          if (v.includes('terceiriz') || v.includes('cmo')) return isTerceiriz || mod.includes('terceiriz') || mod.includes('cmo');
+          return mod.includes(v);
         }
-        return norm(m.produto).includes(v) || norm(m.substancia).includes(v) || norm(m.detentora).includes(v) || norm(m.fabrica).includes(v) || norm(m.classe).includes(v);
+        if (fld === 'registro') return (m.registro_13 || '').includes((fs.val || '').trim());
+        if (fld === 'cnae') return norm(m.cnae).includes(v);
+
+        const allBlob = [
+          m.produto, m.substancia, m.detentora, m.fabrica, m.endereco, m.cidade, m.uf, m.pais,
+          m.classe, m.forma, m.embalagem, m.tarja, m.modelo_prod, m.registro_13, m.cnae, m.socios,
+          m.cnpj_detentora, m.cnpj_fabrica
+        ].filter(Boolean).map(norm).join(' ');
+        return allBlob.includes(v);
       });
       if (!matchesAll) return false;
     }
@@ -6598,3 +6189,17 @@ async function generateClientCsv(type) {
   downloadCsvBlob(csvFinal, `relatorio_${type}_filtrado.csv`);
 }
 
+
+
+// ============================================================================
+// BOOTSTRAP INICIALIZADOR DO COFRE CRIPTOGRAFADO (GITHUB PAGES)
+// ============================================================================
+if (typeof initVaultApp === 'function') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      initVaultApp();
+    });
+  } else {
+    setTimeout(initVaultApp, 25);
+  }
+}
