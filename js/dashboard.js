@@ -973,6 +973,7 @@ window.fetch = async function(url, options) {
           total_marcas: e.produtos_set.size,
           total_apresentacoes: e.total_produtos,
           total_produtos: e.produtos_set.size
+        }));
         if (pFaixaQtd) {
           if (pFaixaQtd === '1a5') list = list.filter(e => e.total_meds >= 1 && e.total_meds <= 5);
           else if (pFaixaQtd === '6a25') list = list.filter(e => e.total_meds >= 6 && e.total_meds <= 25);
@@ -1115,9 +1116,7 @@ window.fetch = async function(url, options) {
 
       function csvCell(val) {
         if (val === null || val === undefined) return '';
-        let s = String(val).replace(/
-/g, ' | ').replace(/
-/g, ' | ').replace(//g, ' | ').trim();
+        let s = String(val).split('\n').join(' | ').split('\r').join('').trim();
         if (s.includes(';') || s.includes('"') || s.includes(',')) {
           s = '"' + s.replace(/"/g, '""') + '"';
         }
@@ -1458,8 +1457,7 @@ window.fetch = async function(url, options) {
         });
       }
 
-      return new Response('﻿' + csvRows.join('
-'), {
+      return new Response('﻿' + csvRows.join('\r\n'), {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
           'Content-Disposition': `attachment; filename="relatorio_${entity}_filtrado.csv"`
