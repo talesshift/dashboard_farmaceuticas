@@ -177,6 +177,33 @@ async function getStaticCatalogo() {
   return staticDataCache.catalogo;
 }
 
+function normStr(s) {
+  if (s == null) return '';
+  let str = s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  str = str.replace(/\bS[\.\/\-\s]+A\b/gi, 'SA');
+  str = str.replace(/\bLTDA[\.\-]*\b/gi, 'LTDA');
+  str = str.replace(/\b([A-Za-z])[\.\-\s]+([A-Za-z])\b/g, '$1$2');
+  str = str.replace(/[\-\.\/\,\;\(\)\[\]\{\}\_\:\+\'\"]/g, ' ');
+  return str.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function getTokens(s) {
+  const n = normStr(s);
+  return n ? n.split(' ') : [];
+}
+
+function matchTokens(target, queryTokens) {
+  if (!queryTokens || queryTokens.length === 0) return true;
+  const targetNorm = normStr(target);
+  return queryTokens.every(tok => {
+    if (targetNorm.includes(tok)) return true;
+    if (tok.length >= 5) {
+      return targetNorm.includes(tok.slice(0, -1));
+    }
+    return false;
+  });
+}
+
 function matchFieldSearches(m, searches) {
   if (!searches || searches.length === 0) return true;
   const isPropria = m.modelo_prod === 'Fabricação Própria';
@@ -185,81 +212,81 @@ function matchFieldSearches(m, searches) {
 
   return searches.every(fs => {
     const fld = (fs.field || 'all').toLowerCase().trim();
-    const v = (fs.val || '').toLowerCase().trim();
+    const v = (fs.val || '').trim();
     if (!v) return true;
+    const tokens = getTokens(v);
     const vClean = v.replace(/[^0-9]/g, '');
 
-    if (fld === 'endereco') {
-      const endStr = (m.endereco || '').toLowerCase();
-      const cid = (m.cidade || '').toLowerCase();
-      const uf = (m.uf || '').toLowerCase();
-      const pais = (m.pais || '').toLowerCase();
-      return endStr.includes(v) || cid.includes(v) || uf.includes(v) || pais.includes(v);
-    }
-    if (fld === 'cidade') {
-      return (m.cidade || '').toLowerCase().includes(v);
-    }
-    if (fld === 'uf') {
-      const u = (m.uf || '').toLowerCase();
-      return u === v || u.includes(v);
-    }
-    if (fld === 'pais') {
-      return (m.pais || '').toLowerCase().includes(v);
-    }
-    if (fld === 'empresa') {
-      return (m.detentora || '').toLowerCase().includes(v);
-    }
-    if (fld === 'fabrica') {
-      return (m.fabrica || '').toLowerCase().includes(v);
-    }
-    if (fld === 'produto') {
-      return (m.produto || '').toLowerCase().includes(v);
-    }
-    if (fld === 'substancia') {
-      return (m.substancia || '').toLowerCase().includes(v);
-    }
-    if (fld === 'socios') {
-      return (m.socios || '').toLowerCase().includes(v);
-    }
     if (fld === 'cnpj') {
       const cd = m.cnpj_detentora_limpo || (m.cnpj_detentora || '').replace(/[^0-9]/g, '');
       const cf = m.cnpj_fabrica_limpo || (m.cnpj_fabrica || '').replace(/[^0-9]/g, '');
-      const rawCd = (m.cnpj_detentora || '').toLowerCase();
-      const rawCf = (m.cnpj_fabrica || '').toLowerCase();
-      return (vClean && (cd.includes(vClean) || cf.includes(vClean))) || rawCd.includes(v) || rawCf.includes(v);
-    }
-    if (fld === 'classe') {
-      return (m.classe || '').toLowerCase().includes(v);
-    }
-    if (fld === 'forma') {
-      return (m.forma || '').toLowerCase().includes(v);
-    }
-    if (fld === 'embalagem') {
-      return (m.embalagem || '').toLowerCase().includes(v);
-    }
-    if (fld === 'tarja') {
-      return (m.tarja || '').toLowerCase().includes(v);
-    }
-    if (fld === 'modelo') {
-      const mod = (m.modelo_prod || '').toLowerCase();
-      if (v.includes('propria') || v.includes('própria')) return mod.includes('própria') || mod.includes('propria');
-      if (v.includes('import')) return mod.includes('import');
-      if (v.includes('terceiriz') || v.includes('cmo')) return mod.includes('terceiriz') || mod.includes('cmo');
-      return mod.includes(v);
+      const rawCd = normStr(m.cnpj_detentora);
+      const rawCf = normStr(m.cnpj_fabrica);
+      return (vClean && (cd.includes(vClean) || cf.includes(vClean))) || matchTokens(rawCd, tokens) || matchTokens(rawCf, tokens);
     }
     if (fld === 'registro') {
-      return (m.registro_13 || '').includes(v);
+      const rLimpo = (m.registro_13 || '').replace(/[^0-9]/g, '');
+      return (vClean && rLimpo.includes(vClean)) || (m.registro_13 || '').includes(v);
     }
     if (fld === 'cnae') {
-      return (m.cnae || '').toLowerCase().includes(v);
+      const fTokens = tokens.filter(t => !['de', 'da', 'do', 'para', 'e', 'em', 'com', 'uso'].includes(t));
+      return matchTokens(m.cnae, fTokens);
+    }
+    if (fld === 'socios') {
+      return matchTokens(m.socios, tokens);
+    }
+    if (fld === 'produto') {
+      return matchTokens(m.produto, tokens);
+    }
+    if (fld === 'substancia') {
+      return matchTokens(m.substancia, tokens);
+    }
+    if (fld === 'empresa') {
+      return matchTokens(m.detentora, tokens);
+    }
+    if (fld === 'fabrica') {
+      return matchTokens(m.fabrica, tokens);
+    }
+    if (fld === 'endereco') {
+      return matchTokens(m.endereco, tokens) || matchTokens(m.cidade, tokens) || matchTokens(m.uf, tokens) || matchTokens(m.pais, tokens);
+    }
+    if (fld === 'cidade') {
+      return matchTokens(m.cidade, tokens);
+    }
+    if (fld === 'uf') {
+      const u = normStr(m.uf);
+      return tokens.every(tok => u === tok || u.includes(tok));
+    }
+    if (fld === 'pais') {
+      return matchTokens(m.pais, tokens);
+    }
+    if (fld === 'classe') {
+      return matchTokens(m.classe, tokens);
+    }
+    if (fld === 'forma') {
+      return matchTokens(m.forma, tokens);
+    }
+    if (fld === 'embalagem') {
+      return matchTokens(m.embalagem, tokens);
+    }
+    if (fld === 'tarja') {
+      return matchTokens(m.tarja, tokens);
+    }
+    if (fld === 'modelo') {
+      const mod = normStr(m.modelo_prod);
+      const vNorm = normStr(v);
+      if (vNorm.includes('propria')) return isPropria || mod.includes('propria');
+      if (vNorm.includes('import')) return isImport || mod.includes('import');
+      if (vNorm.includes('terceiriz') || vNorm.includes('cmo')) return isTerceiriz || mod.includes('terceiriz') || mod.includes('cmo');
+      return matchTokens(mod, tokens);
     }
 
     const allBlob = [
       m.produto, m.substancia, m.detentora, m.fabrica, m.endereco, m.cidade, m.uf, m.pais,
       m.classe, m.forma, m.embalagem, m.tarja, m.modelo_prod, m.registro_13, m.cnae, m.socios,
       m.cnpj_detentora, m.cnpj_fabrica
-    ].filter(Boolean).join(' ').toLowerCase();
-    return allBlob.includes(v);
+    ].filter(Boolean).map(normStr).join(' ');
+    return matchTokens(allBlob, tokens);
   });
 }
 
@@ -5827,8 +5854,33 @@ async function generateClientCsv(type) {
     } catch (e) {}
   }
 
-  // Helper matching functions
-  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  // Helper matching functions with full flexibility
+  const norm = (s) => {
+    if (s == null) return '';
+    let str = s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    str = str.replace(/\bS[\.\/\-\s]+A\b/gi, 'SA');
+    str = str.replace(/\bLTDA[\.\-]*\b/gi, 'LTDA');
+    str = str.replace(/\b([A-Za-z])[\.\-\s]+([A-Za-z])\b/g, '$1$2');
+    str = str.replace(/[\-\.\/\,\;\(\)\[\]\{\}\_\:\+\'\"]/g, ' ');
+    return str.toLowerCase().replace(/\s+/g, ' ').trim();
+  };
+
+  const getTokens = (s) => {
+    const n = norm(s);
+    return n ? n.split(' ') : [];
+  };
+
+  const matchTokens = (target, qTokens) => {
+    if (!qTokens || qTokens.length === 0) return true;
+    const targetNorm = norm(target);
+    return qTokens.every(tok => {
+      if (targetNorm.includes(tok)) return true;
+      if (tok.length >= 5) {
+        return targetNorm.includes(tok.slice(0, -1));
+      }
+      return false;
+    });
+  };
 
   function matchForma(mForma, target) {
     if (!target || target === 'ALL') return true;
@@ -5956,64 +6008,73 @@ async function generateClientCsv(type) {
 
     // Text search
     if (drilldownState.q) {
-      const q = drilldownState.q.toLowerCase();
-      const matchQ = norm(m.produto).includes(q) || norm(m.substancia).includes(q) || norm(m.detentora).includes(q) || norm(m.fabrica).includes(q) || norm(m.registro_13).includes(q);
+      const qTokens = getTokens(drilldownState.q);
+      const matchQ = matchTokens(m.produto, qTokens) ||
+                     matchTokens(m.substancia, qTokens) ||
+                     matchTokens(m.detentora, qTokens) ||
+                     matchTokens(m.fabrica, qTokens) ||
+                     (m.registro_13 || '').includes(drilldownState.q.replace(/\D/g, '')) ||
+                     matchTokens(m.registro_13, qTokens);
       if (!matchQ) return false;
     }
 
-    // Field-specific search filters (stackable)
+    // Field-specific search filters (stackable with full flexibility)
     if (activeFieldSearches && activeFieldSearches.length > 0) {
       const matchesAll = activeFieldSearches.every(fs => {
         const fld = (fs.field || 'all').toLowerCase().trim();
-        const v = norm(fs.val);
+        const v = (fs.val || '').trim();
         if (!v) return true;
-        const vClean = (fs.val || '').replace(/[^0-9]/g, '');
+        const tokens = getTokens(v);
+        const vClean = v.replace(/[^0-9]/g, '');
 
-        if (fld === 'endereco') {
-          const endStr = norm(m.endereco);
-          const cid = norm(m.cidade);
-          const uf = norm(m.uf);
-          const pais = norm(m.pais);
-          return endStr.includes(v) || cid.includes(v) || uf.includes(v) || pais.includes(v);
-        }
-        if (fld === 'cidade') return norm(m.cidade).includes(v);
-        if (fld === 'uf') {
-          const u = norm(m.uf);
-          return u === v || u.includes(v);
-        }
-        if (fld === 'pais') return norm(m.pais).includes(v);
-        if (fld === 'empresa') return norm(m.detentora).includes(v);
-        if (fld === 'fabrica') return norm(m.fabrica).includes(v);
-        if (fld === 'produto') return norm(m.produto).includes(v);
-        if (fld === 'substancia') return norm(m.substancia).includes(v);
-        if (fld === 'socios') return norm(m.socios).includes(v);
         if (fld === 'cnpj') {
           const cd = (m.cnpj_detentora_limpo || norm(m.cnpj_detentora).replace(/[^0-9]/g, ''));
           const cf = (m.cnpj_fabrica_limpo || norm(m.cnpj_fabrica).replace(/[^0-9]/g, ''));
           const rawCd = norm(m.cnpj_detentora);
           const rawCf = norm(m.cnpj_fabrica);
-          return (vClean && (cd.includes(vClean) || cf.includes(vClean))) || rawCd.includes(v) || rawCf.includes(v);
+          return (vClean && (cd.includes(vClean) || cf.includes(vClean))) || matchTokens(rawCd, tokens) || matchTokens(rawCf, tokens);
         }
-        if (fld === 'classe') return norm(m.classe).includes(v);
-        if (fld === 'forma') return norm(m.forma).includes(v);
-        if (fld === 'embalagem') return norm(m.embalagem).includes(v);
-        if (fld === 'tarja') return norm(m.tarja).includes(v);
+        if (fld === 'registro') {
+          const rLimpo = (m.registro_13 || '').replace(/[^0-9]/g, '');
+          return (vClean && rLimpo.includes(vClean)) || (m.registro_13 || '').includes(v);
+        }
+        if (fld === 'cnae') {
+          const fTokens = tokens.filter(t => !['de', 'da', 'do', 'para', 'e', 'em', 'com', 'uso'].includes(t));
+          return matchTokens(m.cnae, fTokens);
+        }
+        if (fld === 'socios') return matchTokens(m.socios, tokens);
+        if (fld === 'produto') return matchTokens(m.produto, tokens);
+        if (fld === 'substancia') return matchTokens(m.substancia, tokens);
+        if (fld === 'empresa') return matchTokens(m.detentora, tokens);
+        if (fld === 'fabrica') return matchTokens(m.fabrica, tokens);
+        if (fld === 'endereco') {
+          return matchTokens(m.endereco, tokens) || matchTokens(m.cidade, tokens) || matchTokens(m.uf, tokens) || matchTokens(m.pais, tokens);
+        }
+        if (fld === 'cidade') return matchTokens(m.cidade, tokens);
+        if (fld === 'uf') {
+          const u = norm(m.uf);
+          return tokens.every(tok => u === tok || u.includes(tok));
+        }
+        if (fld === 'pais') return matchTokens(m.pais, tokens);
+        if (fld === 'classe') return matchTokens(m.classe, tokens);
+        if (fld === 'forma') return matchTokens(m.forma, tokens);
+        if (fld === 'embalagem') return matchTokens(m.embalagem, tokens);
+        if (fld === 'tarja') return matchTokens(m.tarja, tokens);
         if (fld === 'modelo') {
           const mod = norm(m.modelo_prod);
-          if (v.includes('propria')) return isPropria || mod.includes('propria');
-          if (v.includes('import')) return isImport || mod.includes('import');
-          if (v.includes('terceiriz') || v.includes('cmo')) return isTerceiriz || mod.includes('terceiriz') || mod.includes('cmo');
-          return mod.includes(v);
+          const vNorm = norm(v);
+          if (vNorm.includes('propria')) return isPropria || mod.includes('propria');
+          if (vNorm.includes('import')) return isImport || mod.includes('import');
+          if (vNorm.includes('terceiriz') || vNorm.includes('cmo')) return isTerceiriz || mod.includes('terceiriz') || mod.includes('cmo');
+          return matchTokens(mod, tokens);
         }
-        if (fld === 'registro') return (m.registro_13 || '').includes((fs.val || '').trim());
-        if (fld === 'cnae') return norm(m.cnae).includes(v);
 
         const allBlob = [
           m.produto, m.substancia, m.detentora, m.fabrica, m.endereco, m.cidade, m.uf, m.pais,
           m.classe, m.forma, m.embalagem, m.tarja, m.modelo_prod, m.registro_13, m.cnae, m.socios,
           m.cnpj_detentora, m.cnpj_fabrica
         ].filter(Boolean).map(norm).join(' ');
-        return allBlob.includes(v);
+        return matchTokens(allBlob, tokens);
       });
       if (!matchesAll) return false;
     }
