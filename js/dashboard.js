@@ -6024,8 +6024,6 @@ async function generateClientCsv(type) {
   const rowsOutput = [];
 
   if (type === 'fabricas') {
-    // Look up staticDataCache.fabricas
-    const fabLookup = {};
     // Pre-load empresas & fabricas cache if available
     if (typeof staticDataCache !== 'undefined') {
       if (!staticDataCache.empresas && typeof fetchAndDecryptJson === 'function') {
